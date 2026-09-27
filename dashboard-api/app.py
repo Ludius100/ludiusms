@@ -7,26 +7,14 @@ import json
 import os
 import shutil
 import time
-import threading
 import uuid
 
-from services.jellyfin import (
-    get_jellyfin_library_items,
-    jellyfin_get,
-)
+from services.jellyfin import jellyfin_get
 
-from services.jellyfin_activity import (
-    build_jellyfin_activity_state,
-    format_episode_detail,
-    load_jellyfin_state,
-    save_jellyfin_state,
-)
+from services.activity import load_activity
+from services.jellyfin_activity import start_activity_collectors
 
 from config import (
-    ACTIVITY_FILE,
-    ACTIVITY_LIMIT,
-    JELLYFIN_COLLECT_INTERVAL,
-    JELLYFIN_STATE_FILE,
     LOCAL_MEDIA_LIBRARIES,
     QBITTORRENT,
     QBITTORRENT_LIBRARIES,
@@ -225,171 +213,8 @@ def format_qb_file(item):
 
 
 # ============================================================
-# Activity
+# Background collectors
 # ============================================================
-
-def load_activity():
-    try:
-        with open(ACTIVITY_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        if isinstance(data, list):
-            return data
-
-    except FileNotFoundError:
-        pass
-
-    except Exception as e:
-        print(
-            "Activity load error:",
-            type(e).__name__,
-            e,
-            flush=True
-        )
-
-    return []
-
-
-def save_activity(events):
-    directory = os.path.dirname(ACTIVITY_FILE)
-    os.makedirs(directory, exist_ok=True)
-
-    temporary = ACTIVITY_FILE + ".tmp"
-
-    with open(temporary, "w", encoding="utf-8") as f:
-        json.dump(
-            events[:ACTIVITY_LIMIT],
-            f,
-            ensure_ascii=False,
-            indent=2
-        )
-
-    os.replace(temporary, ACTIVITY_FILE)
-
-
-def add_activity(event_type, title, detail=None, source=None):
-    title = str(title or "").strip()
-
-    if not title:
-        return
-
-    events = load_activity()
-
-    event = {
-        "id": str(time.time_ns()),
-        "type": str(event_type),
-        "title": title,
-        "timestamp": int(time.time())
-    }
-
-    if detail:
-        event["detail"] = str(detail)
-
-    if source:
-        event["source"] = str(source)
-
-    events.insert(0, event)
-    save_activity(events)
-
-
-# ============================================================
-# Jellyfin Activity Collector
-# ============================================================
-
-def collect_jellyfin_activity():
-    try:
-        items = get_jellyfin_library_items()
-        current = build_jellyfin_activity_state(items)
-
-        state_exists = os.path.exists(JELLYFIN_STATE_FILE)
-        state = load_jellyfin_state()
-
-        # Pierwszy przebieg tylko zapamiętuje aktualną bibliotekę.
-        # Nie zasypujemy Activity starymi filmami i odcinkami.
-        if not state_exists:
-            save_jellyfin_state(current)
-            print(
-                f"Jellyfin activity baseline: {len(current)} items",
-                flush=True
-            )
-            return
-
-        old_ids = set(state.keys())
-        new_ids = set(current.keys()) - old_ids
-        new_items = [current[item_id] for item_id in new_ids]
-        new_items.sort(key=lambda item: item.get("dateCreated") or "")
-
-        for item in new_items:
-            item_type = item.get("type")
-
-            if item_type == "Movie":
-                title = str(item.get("name") or "Nieznany film").strip()
-                year = item.get("year")
-
-                add_activity(
-                    "movie_added",
-                    title,
-                    detail=str(year) if year else None,
-                    source="jellyfin"
-                )
-
-                print(
-                    "Activity: movie added: "
-                    + title
-                    + (f" ({year})" if year else ""),
-                    flush=True
-                )
-
-            elif item_type == "Episode":
-                title = str(
-                    item.get("seriesName")
-                    or item.get("name")
-                    or "Nieznany serial"
-                ).strip()
-                detail = format_episode_detail(item)
-
-                add_activity(
-                    "episode_added",
-                    title,
-                    detail=detail,
-                    source="jellyfin"
-                )
-
-                print(
-                    "Activity: episode added: "
-                    + title
-                    + (f" • {detail}" if detail else ""),
-                    flush=True
-                )
-
-        save_jellyfin_state(current)
-
-    except Exception as e:
-        print(
-            "Jellyfin activity collector error:",
-            type(e).__name__,
-            e,
-            flush=True
-        )
-
-
-def jellyfin_activity_loop():
-    # Krótka zwłoka po starcie kontenera, żeby API zdążyło wstać.
-    time.sleep(3)
-
-    while True:
-        collect_jellyfin_activity()
-        time.sleep(JELLYFIN_COLLECT_INTERVAL)
-
-
-def start_activity_collectors():
-    thread = threading.Thread(
-        target=jellyfin_activity_loop,
-        name="jellyfin-activity",
-        daemon=True
-    )
-    thread.start()
-
 
 start_activity_collectors()
 

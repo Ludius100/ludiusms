@@ -1,7 +1,12 @@
 import json
 import os
+import threading
+import time
 
-from config import JELLYFIN_STATE_FILE
+from config import JELLYFIN_COLLECT_INTERVAL, JELLYFIN_STATE_FILE
+
+from services.activity import add_activity
+from services.jellyfin import get_jellyfin_library_items
 
 
 def load_jellyfin_state():
@@ -91,3 +96,98 @@ def format_episode_detail(item):
     if episode_name:
         return episode_name
     return None
+
+
+def collect_jellyfin_activity():
+    try:
+        items = get_jellyfin_library_items()
+        current = build_jellyfin_activity_state(items)
+
+        state_exists = os.path.exists(JELLYFIN_STATE_FILE)
+        state = load_jellyfin_state()
+
+        # Pierwszy przebieg tylko zapamiętuje aktualną bibliotekę.
+        # Nie zasypujemy Activity starymi filmami i odcinkami.
+        if not state_exists:
+            save_jellyfin_state(current)
+            print(
+                f"Jellyfin activity baseline: {len(current)} items",
+                flush=True
+            )
+            return
+
+        old_ids = set(state.keys())
+        new_ids = set(current.keys()) - old_ids
+        new_items = [current[item_id] for item_id in new_ids]
+        new_items.sort(key=lambda item: item.get("dateCreated") or "")
+
+        for item in new_items:
+            item_type = item.get("type")
+
+            if item_type == "Movie":
+                title = str(item.get("name") or "Nieznany film").strip()
+                year = item.get("year")
+
+                add_activity(
+                    "movie_added",
+                    title,
+                    detail=str(year) if year else None,
+                    source="jellyfin"
+                )
+
+                print(
+                    "Activity: movie added: "
+                    + title
+                    + (f" ({year})" if year else ""),
+                    flush=True
+                )
+
+            elif item_type == "Episode":
+                title = str(
+                    item.get("seriesName")
+                    or item.get("name")
+                    or "Nieznany serial"
+                ).strip()
+                detail = format_episode_detail(item)
+
+                add_activity(
+                    "episode_added",
+                    title,
+                    detail=detail,
+                    source="jellyfin"
+                )
+
+                print(
+                    "Activity: episode added: "
+                    + title
+                    + (f" • {detail}" if detail else ""),
+                    flush=True
+                )
+
+        save_jellyfin_state(current)
+
+    except Exception as e:
+        print(
+            "Jellyfin activity collector error:",
+            type(e).__name__,
+            e,
+            flush=True
+        )
+
+
+def jellyfin_activity_loop():
+    # Krótka zwłoka po starcie kontenera, żeby API zdążyło wstać.
+    time.sleep(3)
+
+    while True:
+        collect_jellyfin_activity()
+        time.sleep(JELLYFIN_COLLECT_INTERVAL)
+
+
+def start_activity_collectors():
+    thread = threading.Thread(
+        target=jellyfin_activity_loop,
+        name="jellyfin-activity",
+        daemon=True
+    )
+    thread.start()
