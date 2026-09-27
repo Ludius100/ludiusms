@@ -1,10 +1,8 @@
 from flask import Flask, jsonify, request
 import urllib.parse
 import urllib.error
-import json
 import os
 import time
-import uuid
 
 from services.jellyfin import jellyfin_get
 
@@ -21,16 +19,22 @@ from services.qbittorrent import (
 from services.activity import load_activity
 from services.jellyfin_activity import start_activity_collectors
 from services.system import check_http, get_system_stats
-from services.media_paths import path_is_inside, safe_media_component
+from services.media_paths import path_is_inside
 from services.media_planner import build_plan_tree, plan_movie, plan_series
+from services.uploads import (
+    UploadError,
+    append_upload_chunk,
+    cancel_upload,
+    create_upload_session,
+    finalize_upload,
+    get_upload_status,
+    save_small_upload,
+)
 
 from config import (
     LOCAL_MEDIA_LIBRARIES,
     QBITTORRENT,
     QBITTORRENT_LIBRARIES,
-    UPLOAD_CHUNK_MAX,
-    UPLOAD_STAGING_DIR,
-    UPLOAD_STATE_DIR,
 )
 
 app = Flask(__name__)
@@ -690,123 +694,6 @@ def qbittorrent_start():
         }), 503
 
 
-# ============================================================
-# Local Media Upload
-# ============================================================
-
-def set_nas_permissions(path):
-    os.chown(path, 1002, 1003)
-
-    if os.path.isdir(path):
-        os.chmod(path, 0o2770)
-    else:
-        os.chmod(path, 0o660)
-
-
-def upload_state_path(upload_id):
-    upload_id = str(upload_id or "").strip().lower()
-
-    if len(upload_id) != 32 or any(c not in "0123456789abcdef" for c in upload_id):
-        raise ValueError("Nieprawidłowe ID uploadu")
-
-    return os.path.join(UPLOAD_STATE_DIR, upload_id + ".json")
-
-
-def load_upload_state(upload_id):
-    path = upload_state_path(upload_id)
-
-    with open(path, "r", encoding="utf-8") as f:
-        state = json.load(f)
-
-    if not isinstance(state, dict):
-        raise ValueError("Uszkodzony stan uploadu")
-
-    return state
-
-
-def save_upload_state(state):
-    os.makedirs(UPLOAD_STATE_DIR, exist_ok=True)
-    path = upload_state_path(state["id"])
-    temporary = path + ".tmp"
-
-    with open(temporary, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-
-    os.replace(temporary, path)
-
-
-def delete_upload_state(upload_id):
-    try:
-        os.remove(upload_state_path(upload_id))
-    except FileNotFoundError:
-        pass
-
-
-def public_upload_state(state):
-    staging_path = state["stagingPath"]
-    received = os.path.getsize(staging_path) if os.path.exists(staging_path) else 0
-    expected = int(state["size"])
-
-    return {
-        "ok": True,
-        "uploadId": state["id"],
-        "library": state["library"],
-        "libraryName": state["libraryName"],
-        "folder": state["folder"],
-        "originalName": state["originalName"],
-        "name": state["name"],
-        "size": expected,
-        "received": received,
-        "remaining": max(0, expected - received),
-        "complete": received == expected,
-        "chunkMax": UPLOAD_CHUNK_MAX
-    }
-
-
-def prepare_upload_target(data):
-    library_id = str(data.get("library", "")).strip()
-    library = LOCAL_MEDIA_LIBRARIES.get(library_id)
-
-    if not library:
-        raise ValueError("Nieprawidłowa biblioteka lokalnych mediów")
-
-    raw_folder = str(data.get("folder", "") or "").replace("\\", "/").strip("/")
-    folder_parts = []
-
-    for part in raw_folder.split("/"):
-        if not part or part in (".", ".."):
-            continue
-        folder_parts.append(safe_media_component(part, "media"))
-
-    if not folder_parts:
-        folder_parts = ["Nowe media"]
-
-    folder_name = "/".join(folder_parts)
-    original_name = safe_media_component(data.get("originalName", ""), "media.bin")
-    target_name = safe_media_component(data.get("targetName") or original_name, original_name)
-
-    try:
-        size = int(data.get("size"))
-    except (TypeError, ValueError):
-        raise ValueError("Nieprawidłowy rozmiar pliku")
-
-    if size < 0:
-        raise ValueError("Nieprawidłowy rozmiar pliku")
-
-    library_root = os.path.realpath(library["path"])
-    destination_dir = os.path.join(library_root, *folder_parts)
-    destination = os.path.join(destination_dir, target_name)
-
-    if not path_is_inside(destination_dir, library_root):
-        raise ValueError("Nieprawidłowa ścieżka docelowa")
-
-    if not path_is_inside(destination, library_root):
-        raise ValueError("Nieprawidłowa nazwa pliku")
-
-    return library_id, library, folder_name, original_name, target_name, size, destination_dir, destination
-
-
-
 @app.route("/api/media/titles", methods=["GET", "OPTIONS"])
 def media_titles():
     if request.method == "OPTIONS":
@@ -1071,58 +958,29 @@ def media_plan():
         }), 500
 
 
+# ============================================================
+# Local Media Upload
+# ============================================================
+
 @app.route("/api/media/upload/init", methods=["POST", "OPTIONS"])
 def media_upload_init():
     if request.method == "OPTIONS":
         return "", 204
 
     try:
-        data = request.get_json(silent=True) or {}
-        (
-            library_id, library, folder_name, original_name,
-            target_name, size, destination_dir, destination
-        ) = prepare_upload_target(data)
+        result = create_upload_session(
+            request.get_json(silent=True) or {}
+        )
+        return jsonify(result), 201
 
-        if os.path.exists(destination):
-            return jsonify({
-                "ok": False,
-                "error": "Plik docelowy już istnieje",
-                "conflict": True,
-                "target": destination
-            }), 409
-
-        os.makedirs(UPLOAD_STAGING_DIR, exist_ok=True)
-        set_nas_permissions(UPLOAD_STAGING_DIR)
-
-        upload_id = uuid.uuid4().hex
-        staging_path = os.path.join(UPLOAD_STAGING_DIR, upload_id + ".part")
-
-        with open(staging_path, "xb"):
-            pass
-        set_nas_permissions(staging_path)
-
-        state = {
-            "id": upload_id,
-            "library": library_id,
-            "libraryName": library["name"],
-            "folder": folder_name,
-            "originalName": original_name,
-            "name": target_name,
-            "size": size,
-            "destinationDir": destination_dir,
-            "destination": destination,
-            "stagingPath": staging_path,
-            "createdAt": int(time.time())
-        }
-        save_upload_state(state)
-
-        return jsonify(public_upload_state(state)), 201
-
-    except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+    except UploadError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print("Upload init error:", type(e).__name__, e, flush=True)
-        return jsonify({"ok": False, "error": "Nie udało się utworzyć sesji uploadu"}), 500
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się utworzyć sesji uploadu"
+        }), 500
 
 
 @app.route("/api/media/upload/<upload_id>", methods=["GET", "OPTIONS"])
@@ -1131,13 +989,16 @@ def media_upload_status(upload_id):
         return "", 204
 
     try:
-        state = load_upload_state(upload_id)
-        return jsonify(public_upload_state(state))
-    except (FileNotFoundError, ValueError):
-        return jsonify({"ok": False, "error": "Nie znaleziono sesji uploadu"}), 404
+        return jsonify(get_upload_status(upload_id))
+
+    except UploadError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print("Upload status error:", type(e).__name__, e, flush=True)
-        return jsonify({"ok": False, "error": "Nie udało się odczytać uploadu"}), 500
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się odczytać uploadu"
+        }), 500
 
 
 @app.route("/api/media/upload/<upload_id>/chunk", methods=["POST", "OPTIONS"])
@@ -1146,66 +1007,22 @@ def media_upload_chunk(upload_id):
         return "", 204
 
     try:
-        state = load_upload_state(upload_id)
-        staging_path = state["stagingPath"]
-        expected_size = int(state["size"])
-
-        try:
-            offset = int(request.headers.get("X-Upload-Offset", ""))
-        except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "Brak lub błędny X-Upload-Offset"}), 400
-
-        current_size = os.path.getsize(staging_path)
-
-        if offset != current_size:
-            return jsonify({
-                "ok": False,
-                "error": "Offset nie zgadza się ze stanem serwera",
-                "expectedOffset": current_size
-            }), 409
-
-        content_length = request.content_length
-        if content_length is not None and content_length > UPLOAD_CHUNK_MAX:
-            return jsonify({
-                "ok": False,
-                "error": "Chunk jest zbyt duży",
-                "chunkMax": UPLOAD_CHUNK_MAX
-            }), 413
-
-        remaining = expected_size - current_size
-        if remaining <= 0:
-            return jsonify(public_upload_state(state))
-
-        written = 0
-        with open(staging_path, "ab") as f:
-            while True:
-                block = request.stream.read(min(1024 * 1024, UPLOAD_CHUNK_MAX - written + 1))
-                if not block:
-                    break
-
-                written += len(block)
-                if written > UPLOAD_CHUNK_MAX or written > remaining:
-                    f.truncate(current_size)
-                    return jsonify({
-                        "ok": False,
-                        "error": "Chunk przekracza dozwolony rozmiar uploadu"
-                    }), 413
-
-                f.write(block)
-
-            f.flush()
-            os.fsync(f.fileno())
-
-        set_nas_permissions(staging_path)
-        result = public_upload_state(state)
-        result["written"] = written
+        result = append_upload_chunk(
+            upload_id,
+            request.headers.get("X-Upload-Offset", ""),
+            request.stream,
+            request.content_length,
+        )
         return jsonify(result)
 
-    except (FileNotFoundError, ValueError):
-        return jsonify({"ok": False, "error": "Nie znaleziono sesji uploadu"}), 404
+    except UploadError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print("Upload chunk error:", type(e).__name__, e, flush=True)
-        return jsonify({"ok": False, "error": "Nie udało się zapisać części pliku"}), 500
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się zapisać części pliku"
+        }), 500
 
 
 @app.route("/api/media/upload/<upload_id>/finalize", methods=["POST", "OPTIONS"])
@@ -1214,65 +1031,16 @@ def media_upload_finalize(upload_id):
         return "", 204
 
     try:
-        state = load_upload_state(upload_id)
-        staging_path = state["stagingPath"]
-        destination_dir = state["destinationDir"]
-        destination = state["destination"]
-        expected_size = int(state["size"])
+        return jsonify(finalize_upload(upload_id))
 
-        if not os.path.exists(staging_path):
-            return jsonify({"ok": False, "error": "Brak pliku tymczasowego"}), 409
-
-        received = os.path.getsize(staging_path)
-        if received != expected_size:
-            return jsonify({
-                "ok": False,
-                "error": "Upload nie jest kompletny",
-                "received": received,
-                "size": expected_size
-            }), 409
-
-        if os.path.exists(destination):
-            return jsonify({
-                "ok": False,
-                "error": "Plik docelowy już istnieje",
-                "conflict": True,
-                "target": destination
-            }), 409
-
-        os.makedirs(destination_dir, exist_ok=True)
-        set_nas_permissions(destination_dir)
-
-        # Final conflict check immediately before the atomic move.
-        if os.path.exists(destination):
-            return jsonify({
-                "ok": False,
-                "error": "Plik docelowy pojawił się podczas uploadu",
-                "conflict": True,
-                "target": destination
-            }), 409
-
-        os.replace(staging_path, destination)
-        set_nas_permissions(destination)
-        delete_upload_state(upload_id)
-
-        return jsonify({
-            "ok": True,
-            "uploadId": upload_id,
-            "library": state["library"],
-            "libraryName": state["libraryName"],
-            "folder": state["folder"],
-            "originalName": state["originalName"],
-            "name": state["name"],
-            "path": destination,
-            "size": os.path.getsize(destination)
-        })
-
-    except (FileNotFoundError, ValueError):
-        return jsonify({"ok": False, "error": "Nie znaleziono sesji uploadu"}), 404
+    except UploadError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print("Upload finalize error:", type(e).__name__, e, flush=True)
-        return jsonify({"ok": False, "error": "Nie udało się zakończyć uploadu"}), 500
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się zakończyć uploadu"
+        }), 500
 
 
 @app.route("/api/media/upload/<upload_id>", methods=["DELETE", "OPTIONS"])
@@ -1281,93 +1049,48 @@ def media_upload_cancel(upload_id):
         return "", 204
 
     try:
-        state = load_upload_state(upload_id)
-        staging_path = state["stagingPath"]
+        return jsonify(cancel_upload(upload_id))
 
-        if os.path.exists(staging_path):
-            os.remove(staging_path)
-
-        delete_upload_state(upload_id)
-        return jsonify({"ok": True, "cancelled": True, "uploadId": upload_id})
-
-    except (FileNotFoundError, ValueError):
-        return jsonify({"ok": False, "error": "Nie znaleziono sesji uploadu"}), 404
+    except UploadError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print("Upload cancel error:", type(e).__name__, e, flush=True)
-        return jsonify({"ok": False, "error": "Nie udało się anulować uploadu"}), 500
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się anulować uploadu"
+        }), 500
 
 
 @app.route("/api/media/upload", methods=["POST", "OPTIONS"])
 def media_upload():
-    """Small-file fallback/test uploader. Large browser uploads use sessions above."""
+    """Small-file fallback/test uploader. Large browser uploads use sessions."""
     if request.method == "OPTIONS":
         return "", 204
 
-    temporary_path = None
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        return jsonify({
+            "ok": False,
+            "error": "Nie wybrano pliku"
+        }), 400
 
     try:
-        library_id = str(request.form.get("library", "")).strip()
-        library = LOCAL_MEDIA_LIBRARIES.get(library_id)
+        result = save_small_upload(
+            str(request.form.get("library", "")).strip(),
+            request.form.get("folder", ""),
+            request.form.get("targetName"),
+            upload,
+        )
+        return jsonify(result)
 
-        if not library:
-            return jsonify({"ok": False, "error": "Nieprawidłowa biblioteka lokalnych mediów"}), 400
-
-        upload = request.files.get("file")
-        if upload is None or not upload.filename:
-            return jsonify({"ok": False, "error": "Nie wybrano pliku"}), 400
-
-        folder_name = safe_media_component(request.form.get("folder", ""), "Nowe media")
-        original_name = safe_media_component(os.path.basename(str(upload.filename).replace("\\", "/")), "media.bin")
-        target_name = safe_media_component(request.form.get("targetName") or original_name, original_name)
-
-        library_root = os.path.realpath(library["path"])
-        destination_dir = os.path.join(library_root, folder_name)
-        destination = os.path.join(destination_dir, target_name)
-
-        if not path_is_inside(destination_dir, library_root) or not path_is_inside(destination, library_root):
-            return jsonify({"ok": False, "error": "Nieprawidłowa ścieżka docelowa"}), 400
-
-        if os.path.exists(destination):
-            return jsonify({"ok": False, "error": "Plik docelowy już istnieje", "conflict": True, "target": destination}), 409
-
-        os.makedirs(destination_dir, exist_ok=True)
-        set_nas_permissions(destination_dir)
-        temporary_path = os.path.join(destination_dir, ".upload-" + uuid.uuid4().hex + ".part")
-
-        upload.save(temporary_path)
-        set_nas_permissions(temporary_path)
-
-        if os.path.exists(destination):
-            os.remove(temporary_path)
-            temporary_path = None
-            return jsonify({"ok": False, "error": "Plik docelowy pojawił się podczas uploadu", "conflict": True, "target": destination}), 409
-
-        os.replace(temporary_path, destination)
-        temporary_path = None
-        set_nas_permissions(destination)
-
-        return jsonify({
-            "ok": True,
-            "library": library_id,
-            "libraryName": library["name"],
-            "folder": folder_name,
-            "originalName": original_name,
-            "name": target_name,
-            "path": destination,
-            "size": os.path.getsize(destination)
-        })
-
+    except UploadError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print("Local media upload error:", type(e).__name__, e, flush=True)
-
-        if temporary_path:
-            try:
-                if os.path.exists(temporary_path):
-                    os.remove(temporary_path)
-            except Exception:
-                pass
-
-        return jsonify({"ok": False, "error": "Nie udało się przesłać pliku"}), 500
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się przesłać pliku"
+        }), 500
 
 
 @app.after_request
