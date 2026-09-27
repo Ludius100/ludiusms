@@ -1,10 +1,8 @@
 from flask import Flask, jsonify, request
-import urllib.request
 import urllib.parse
 import urllib.error
 import json
 import os
-import shutil
 import time
 import uuid
 
@@ -22,6 +20,7 @@ from services.qbittorrent import (
 
 from services.activity import load_activity
 from services.jellyfin_activity import start_activity_collectors
+from services.system import check_http, get_system_stats
 
 from config import (
     LOCAL_MEDIA_LIBRARIES,
@@ -43,71 +42,6 @@ app = Flask(__name__)
 # ============================================================
 
 start_activity_collectors()
-
-
-# ============================================================
-# System
-# ============================================================
-
-def cpu_snapshot():
-    with open("/proc/stat") as f:
-        parts = f.readline().split()[1:]
-
-    values = list(map(int, parts))
-
-    idle = values[3] + values[4]
-    total = sum(values)
-
-    return idle, total
-
-
-def cpu_percent():
-    idle1, total1 = cpu_snapshot()
-    time.sleep(0.15)
-    idle2, total2 = cpu_snapshot()
-
-    idle_delta = idle2 - idle1
-    total_delta = total2 - total1
-
-    if total_delta == 0:
-        return 0
-
-    return round(
-        100 * (1 - idle_delta / total_delta)
-    )
-
-
-def check_http(url):
-    start = time.monotonic()
-
-    try:
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "NAS-Dashboard/1.0"
-            }
-        )
-
-        with urllib.request.urlopen(
-            req,
-            timeout=3
-        ) as response:
-            status = response.status
-
-        latency = round(
-            (time.monotonic() - start) * 1000
-        )
-
-        return {
-            "online": 200 <= status < 500,
-            "latency": latency
-        }
-
-    except Exception:
-        return {
-            "online": False,
-            "latency": None
-        }
 
 
 # ============================================================
@@ -167,53 +101,7 @@ def jellyfin():
 @app.route("/api/system")
 def system_stats():
     try:
-        mem = {}
-
-        with open("/proc/meminfo") as f:
-            for line in f:
-                key, value = line.split(":", 1)
-
-                mem[key] = int(
-                    value.strip().split()[0]
-                )
-
-        ram_percent = round(
-            (
-                1 -
-                mem["MemAvailable"] /
-                mem["MemTotal"]
-            ) * 100
-        )
-
-        with open("/proc/uptime") as f:
-            uptime_seconds = int(
-                float(f.read().split()[0])
-            )
-
-        disk = shutil.disk_usage("/nas")
-
-        disk_percent = round(
-            disk.used / disk.total * 100
-        )
-
-        return jsonify({
-            "cpu": cpu_percent(),
-            "ram": ram_percent,
-
-            "disk": disk_percent,
-
-            "diskUsedGB": round(
-                disk.used / 1024**3,
-                1
-            ),
-
-            "diskTotalGB": round(
-                disk.total / 1024**3,
-                1
-            ),
-
-            "uptimeSeconds": uptime_seconds
-        })
+        return jsonify(get_system_stats())
 
     except Exception as e:
         print("System API error:", e)
