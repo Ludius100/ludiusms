@@ -2,64 +2,36 @@
 
 **Darmowa, samodzielnie hostowana platforma prywatnego serwera multimediów, tworzona z myślą o Oracle Cloud Always Free.**
 
-> Projekt jest w trakcie rozwoju. Obecna wersja nie jest jeszcze przeznaczona do normalnej instalacji przez innych użytkowników.
+> Projekt jest w trakcie rozwoju. Obecna wersja nie jest jeszcze przeznaczona do instalacji przez innych użytkowników.
 
 ## 👋 Czym jest Ludius MS?
 
-Ludius MS to mój projekt prywatnego serwera multimediów, który — trochę przypadkiem — wyrósł z zupełnie innego pomysłu.
+Ludius MS zaczynał jako prosty bot muzyczny na Discorda, uruchomiony na darmowej instancji Oracle Cloud. Skoro serwer już działał, a Oracle Cloud Always Free oferuje też darmową przestrzeń dyskową — pomysł ewoluował w mały NAS na filmy i seriale, a potem w pełnoprawny prywatny serwer multimediów: Jellyfin, zarządzanie biblioteką, pobieranie i przesyłanie plików, monitoring oraz własny panel webowy.
 
-Wszystko zaczęło się od prostego bota muzycznego na Discorda. Początkowo działał lokalnie, a później przeniosłem go na darmową instancję Oracle Cloud.
-
-Skoro serwer już działał, zacząłem zastanawiać się, co jeszcze można z nim zrobić.
-
-Oracle Cloud Always Free oferuje również darmową przestrzeń dyskową, więc kolejnym pomysłem było stworzenie małego NAS-a na moje archiwum filmów, seriali i innych materiałów, które chciałem zachować.
-
-I tutaj projekt trochę wymknął się spod kontroli. :)
-
-Z prostego NAS-a stopniowo powstał działający prywatny serwer multimediów z Jellyfinem, zarządzaniem biblioteką, pobieraniem i przesyłaniem plików, monitoringiem oraz własnym panelem webowym.
-
-Duża część projektu powstaje przy pomocy ChatGPT — wykorzystuję AI do nauki, projektowania kolejnych funkcji, pisania kodu i rozwiązywania problemów, a całość uruchamiam, konfiguruję i testuję na własnym serwerze.
+Projekt powstaje w dużej mierze z pomocą ChatGPT — do nauki, projektowania funkcji, pisania kodu i rozwiązywania problemów — a całość testuję na własnym serwerze.
 
 ## 🎯 Cel projektu
 
-Postanowiłem rozwijać ten eksperyment dalej i spróbować stworzyć z niego możliwie prostą platformę, dzięki której również inne osoby będą mogły postawić własny prywatny serwer multimediów.
+Chcę rozwinąć ten eksperyment w prostą platformę, dzięki której inni też będą mogli postawić własny prywatny serwer multimediów.
 
-Główne założenia są proste:
-
-- 🆓 **darmowe oprogramowanie** — bez wersji Premium i funkcji zamkniętych za paywallem,
-- 🏠 **Twoje media, Twój serwer** — projekt jest przeznaczony do samodzielnego hostowania,
-- ☁️ **Oracle Cloud Always Free** — obecnie to główna platforma, dla której rozwijany i testowany jest Ludius MS,
-- 🎬 **media w jednym miejscu** — filmy, seriale, anime i inne prywatne zbiory,
-- 🧩 **prosta obsługa** — docelowo jak najmniej ręcznego grzebania w terminalu,
-- ❤️ **projekt rozwijany dla frajdy i społeczności** — jeśli komuś poza mną okaże się przydatny, tym lepiej.
+- 🆓 **Darmowe oprogramowanie** — bez wersji Premium i funkcji za paywallem
+- 🏠 **Twoje media, Twój serwer** — do samodzielnego hostowania
+- ☁️ **Oracle Cloud Always Free** — główna platforma docelowa
+- 🎬 **Media w jednym miejscu** — filmy, seriale, anime i inne zbiory
+- 🧩 **Prosta obsługa** — docelowo minimum grzebania w terminalu
+- ❤️ **Projekt dla frajdy i społeczności**
 
 ## 🚧 Aktualny stan
 
-Ludius MS znajduje się obecnie na bardzo wczesnym etapie rozwoju.
+Bardzo wczesny etap. Serwer powstał najpierw na własne potrzeby — teraz porządkuję kod i architekturę, usuwam rozwiązania „na szybko" i przygotowuję projekt pod bezpieczną instalację na czystej instancji Oracle Cloud.
 
-Najpierw powstał działający serwer na moje własne potrzeby. Teraz porządkuję jego kod i architekturę, usuwam rozwiązania stworzone „na szybko” oraz przygotowuję projekt tak, aby w przyszłości można go było bezpiecznie zainstalować na czystej instancji Oracle Cloud.
-
-Pierwszym większym celem jest wydanie **Ludius MS 0.1**.
-
-Do tego czasu mogą pojawiać się duże zmiany, niedokończone funkcje i rzeczy, które po prostu się zepsują.
+Pierwszy cel: wydanie **Ludius MS 0.1**. Do tego czasu możliwe są duże zmiany i niedokończone funkcje.
 
 ## 💡 Dlaczego to robię?
 
-Bo zaczęło się od:
+Zaczęło się od „postawię sobie bota na Discorda", potem „w sumie mam tu trochę miejsca, zrobię NAS", a skończyło na „chyba piszę własną platformę do serwera multimediów". ¯\\_(ツ)_/¯
 
-**„postawię sobie bota na Discorda”**
-
-potem było:
-
-**„w sumie mam tutaj trochę miejsca, zrobię NAS”**
-
-a skończyło się na:
-
-**„dobra, chyba piszę własną platformę do serwera multimediów”**.
-
-¯\_(ツ)_/¯
-
-Jeśli kiedyś Ludius MS pomoże komuś stworzyć własny serwer i zachować swoją kolekcję multimediów, to projekt osiągnie swój cel.
+Jeśli Ludius MS pomoże komuś zachować własną kolekcję multimediów — cel osiągnięty.
 
 ---
 
