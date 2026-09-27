@@ -10,7 +10,10 @@ import time
 import threading
 import uuid
 
-from services.jellyfin import jellyfin_get
+from services.jellyfin import (
+    get_jellyfin_library_items,
+    jellyfin_get,
+)
 
 from config import (
     ACTIVITY_FILE,
@@ -317,23 +320,6 @@ def save_jellyfin_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
     os.replace(temporary, JELLYFIN_STATE_FILE)
-
-
-def get_jellyfin_library_items():
-    path = (
-        "/Items"
-        "?Recursive=true"
-        "&IncludeItemTypes=Movie,Episode"
-        "&Fields=DateCreated,Path,SeriesName,"
-        "ParentIndexNumber,IndexNumber,ProductionYear"
-    )
-
-    data = jellyfin_get(path)
-
-    if not isinstance(data, dict):
-        return []
-
-    return data.get("Items", [])
 
 
 def format_episode_detail(item):

@@ -18,3 +18,20 @@ def jellyfin_get(path):
 
     with urllib.request.urlopen(req, timeout=5) as response:
         return json.loads(response.read())
+
+
+def get_jellyfin_library_items():
+    """Fetch movie and episode metadata used by the activity collector."""
+    path = (
+        "/Items"
+        "?Recursive=true"
+        "&IncludeItemTypes=Movie,Episode"
+        "&Fields=DateCreated,Path,SeriesName,"
+        "ParentIndexNumber,IndexNumber,ProductionYear"
+    )
+
+    data = jellyfin_get(path)
+
+    if not isinstance(data, dict):
+        return []
+
