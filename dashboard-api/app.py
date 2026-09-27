@@ -16,6 +16,7 @@ from services.jellyfin import (
 )
 
 from services.jellyfin_activity import (
+    build_jellyfin_activity_state,
     format_episode_detail,
     load_jellyfin_state,
     save_jellyfin_state,
@@ -298,23 +299,7 @@ def add_activity(event_type, title, detail=None, source=None):
 def collect_jellyfin_activity():
     try:
         items = get_jellyfin_library_items()
-        current = {}
-
-        for item in items:
-            item_id = str(item.get("Id") or "").strip()
-            if not item_id:
-                continue
-
-            current[item_id] = {
-                "type": item.get("Type"),
-                "name": item.get("Name"),
-                "seriesName": item.get("SeriesName"),
-                "season": item.get("ParentIndexNumber"),
-                "episode": item.get("IndexNumber"),
-                "year": item.get("ProductionYear"),
-                "dateCreated": item.get("DateCreated"),
-                "path": item.get("Path")
-            }
+        current = build_jellyfin_activity_state(items)
 
         state_exists = os.path.exists(JELLYFIN_STATE_FILE)
         state = load_jellyfin_state()

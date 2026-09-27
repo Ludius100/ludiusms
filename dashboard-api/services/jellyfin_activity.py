@@ -39,6 +39,29 @@ def save_jellyfin_state(state):
     os.replace(temporary, JELLYFIN_STATE_FILE)
 
 
+def build_jellyfin_activity_state(items):
+    """Build collector state from Jellyfin movie and episode metadata."""
+    current = {}
+
+    for item in items:
+        item_id = str(item.get("Id") or "").strip()
+        if not item_id:
+            continue
+
+        current[item_id] = {
+            "type": item.get("Type"),
+            "name": item.get("Name"),
+            "seriesName": item.get("SeriesName"),
+            "season": item.get("ParentIndexNumber"),
+            "episode": item.get("IndexNumber"),
+            "year": item.get("ProductionYear"),
+            "dateCreated": item.get("DateCreated"),
+            "path": item.get("Path")
+        }
+
+    return current
+
+
 def format_episode_detail(item):
     season = item.get("season")
     episode = item.get("episode")
