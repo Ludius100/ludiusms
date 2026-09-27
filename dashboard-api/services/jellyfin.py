@@ -35,3 +35,4 @@ def get_jellyfin_library_items():
     if not isinstance(data, dict):
         return []
 
+    return data.get("Items", [])

@@ -37,3 +37,34 @@ def save_jellyfin_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
     os.replace(temporary, JELLYFIN_STATE_FILE)
+
+
+def format_episode_detail(item):
+    season = item.get("season")
+    episode = item.get("episode")
+    episode_name = str(item.get("name") or "").strip()
+
+    if season is not None and episode is not None:
+        code = f"S{int(season):02d}E{int(episode):02d}"
+    elif episode is not None:
+        code = f"E{int(episode):02d}"
+    else:
+        code = ""
+
+    generic_names = set()
+    if episode is not None:
+        generic_names.update({
+            f"episode {episode}".lower(),
+            f"odcinek {episode}".lower()
+        })
+
+    if episode_name.lower() in generic_names:
+        episode_name = ""
+
+    if code and episode_name:
+        return f"{code} • {episode_name}"
+    if code:
+        return code
+    if episode_name:
+        return episode_name
+    return None
