@@ -10,13 +10,13 @@ import time
 import threading
 import uuid
 
+from services.jellyfin import jellyfin_get
+
 from config import (
     ACTIVITY_FILE,
     ACTIVITY_LIMIT,
-    JELLYFIN,
     JELLYFIN_COLLECT_INTERVAL,
     JELLYFIN_STATE_FILE,
-    KEY_FILE,
     LOCAL_MEDIA_LIBRARIES,
     QBITTORRENT,
     QBITTORRENT_LIBRARIES,
@@ -29,25 +29,6 @@ from config import (
 )
 
 app = Flask(__name__)
-
-
-# ============================================================
-# Jellyfin
-# ============================================================
-
-def jellyfin_get(path):
-    with open(KEY_FILE, "r") as f:
-        key = f.read().strip()
-
-    req = urllib.request.Request(
-        JELLYFIN + path,
-        headers={
-            "Authorization": f'MediaBrowser Token="{key}"'
-        }
-    )
-
-    with urllib.request.urlopen(req, timeout=5) as response:
-        return json.loads(response.read())
 
 
 # ============================================================
