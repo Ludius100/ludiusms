@@ -15,6 +15,11 @@ from services.jellyfin import (
     jellyfin_get,
 )
 
+from services.jellyfin_activity import (
+    load_jellyfin_state,
+    save_jellyfin_state,
+)
+
 from config import (
     ACTIVITY_FILE,
     ACTIVITY_LIMIT,
@@ -288,39 +293,6 @@ def add_activity(event_type, title, detail=None, source=None):
 # ============================================================
 # Jellyfin Activity Collector
 # ============================================================
-
-def load_jellyfin_state():
-    try:
-        with open(JELLYFIN_STATE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        if isinstance(data, dict):
-            return data
-
-    except FileNotFoundError:
-        pass
-
-    except Exception as e:
-        print(
-            "Jellyfin state load error:",
-            type(e).__name__,
-            e,
-            flush=True
-        )
-
-    return {}
-
-
-def save_jellyfin_state(state):
-    directory = os.path.dirname(JELLYFIN_STATE_FILE)
-    os.makedirs(directory, exist_ok=True)
-    temporary = JELLYFIN_STATE_FILE + ".tmp"
-
-    with open(temporary, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-
-    os.replace(temporary, JELLYFIN_STATE_FILE)
-
 
 def format_episode_detail(item):
     season = item.get("season")
