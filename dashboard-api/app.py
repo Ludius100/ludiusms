@@ -1,19 +1,14 @@
 from flask import Flask, jsonify, request
-import urllib.parse
-import urllib.error
 import os
-import time
 
 from services.jellyfin import jellyfin_get
 
-from services.qbittorrent import (
-    format_qb_file,
-    format_torrent,
-    qb_client,
-    qb_find_torrent_by_magnet,
-    qb_get,
-    qb_post,
-    qb_torrent_files,
+from services.qbittorrent_workflows import (
+    QBitTorrentError,
+    get_qbittorrent_libraries,
+    get_qbittorrent_status,
+    prepare_magnet,
+    start_torrent,
 )
 
 from services.activity import load_activity
@@ -34,7 +29,6 @@ from services.uploads import (
 from config import (
     LOCAL_MEDIA_LIBRARIES,
     QBITTORRENT,
-    QBITTORRENT_LIBRARIES,
 )
 
 app = Flask(__name__)
@@ -135,94 +129,14 @@ def status():
 @app.route("/api/qbittorrent/libraries")
 def qbittorrent_libraries():
     return jsonify({
-        "libraries": [
-            {
-                "id": library_id,
-                "name": library["name"]
-            }
-            for library_id, library
-            in QBITTORRENT_LIBRARIES.items()
-        ]
+        "libraries": get_qbittorrent_libraries()
     })
 
 
 @app.route("/api/qbittorrent")
 def qbittorrent_status():
     try:
-        opener = qb_client()
-
-        transfer = qb_get(
-            opener,
-            "/api/v2/transfer/info"
-        )
-
-        torrents = qb_get(
-            opener,
-            "/api/v2/torrents/info"
-        )
-
-        torrents = torrents or []
-
-        formatted = [
-            format_torrent(torrent)
-            for torrent in torrents
-        ]
-
-        active = [
-            torrent
-            for torrent in formatted
-            if torrent["state"] not in (
-                "pausedDL",
-                "pausedUP",
-                "stoppedDL",
-                "stoppedUP",
-                "error",
-                "missingFiles"
-            )
-        ]
-
-        downloading = [
-            torrent
-            for torrent in formatted
-            if torrent["state"] in (
-                "downloading",
-                "metaDL",
-                "forcedDL",
-                "stalledDL",
-                "checkingDL",
-                "allocating"
-            )
-        ]
-
-        return jsonify({
-            "online": True,
-
-            "downloadSpeed": transfer.get(
-                "dl_info_speed",
-                0
-            ),
-
-            "uploadSpeed": transfer.get(
-                "up_info_speed",
-                0
-            ),
-
-            "downloaded": transfer.get(
-                "dl_info_data",
-                0
-            ),
-
-            "uploaded": transfer.get(
-                "up_info_data",
-                0
-            ),
-
-            "total": len(formatted),
-            "active": len(active),
-            "downloading": len(downloading),
-
-            "torrents": formatted
-        })
+        return jsonify(get_qbittorrent_status())
 
     except Exception as e:
         print(
@@ -245,191 +159,17 @@ def qbittorrent_add():
     if request.method == "OPTIONS":
         return "", 204
 
+    data = request.get_json(silent=True) or {}
+
     try:
-        data = request.get_json(silent=True) or {}
-
-        magnet = str(data.get("magnet", "")).strip()
-
-        if not magnet:
-            return jsonify({
-                "ok": False,
-                "error": "Brak linku magnet"
-            }), 400
-
-        if not magnet.lower().startswith("magnet:?"):
-            return jsonify({
-                "ok": False,
-                "error": "Dozwolone są tylko linki magnet"
-            }), 400
-
-        if len(magnet) > 16_384:
-            return jsonify({
-                "ok": False,
-                "error": "Link magnet jest zbyt długi"
-            }), 400
-
-        library_id = str(
-            data.get("library", "downloads")
-        ).strip()
-
-        library = QBITTORRENT_LIBRARIES.get(library_id)
-
-        if not library:
-            return jsonify({
-                "ok": False,
-                "error": "Nieprawidłowa biblioteka"
-            }), 400
-
-        opener = qb_client()
-
-        before = qb_get(
-            opener,
-            "/api/v2/torrents/info"
-        ) or []
-
-        before_hashes = {
-            t.get("hash")
-            for t in before
-            if t.get("hash")
-        }
-
-        expected_hash = qb_find_torrent_by_magnet(
-            opener,
-            magnet
+        result = prepare_magnet(
+            data.get("magnet"),
+            data.get("library", "downloads"),
         )
+        return jsonify(result)
 
-        status = qb_post(
-            opener,
-            "/api/v2/torrents/add",
-            {
-                "urls": magnet,
-                "savepath": library["path"],
-                "root_folder": "true",
-                "paused": "true",
-                "ratioLimit": "0",
-                "seedingTimeLimit": "0"
-            }
-        )
-
-        if status not in (200, 204):
-            raise RuntimeError(
-                f"qBittorrent add HTTP {status}"
-            )
-
-        torrent_hash = None
-        torrent_name = None
-        files = []
-
-        # Czekamy maksymalnie ~60 s na metadane.
-        for _ in range(120):
-            time.sleep(0.5)
-
-            torrents = qb_get(
-                opener,
-                "/api/v2/torrents/info"
-            ) or []
-
-            candidate = None
-
-            if expected_hash:
-                candidate = next(
-                    (
-                        t for t in torrents
-                        if str(
-                            t.get("hash", "")
-                        ).lower() == expected_hash
-                    ),
-                    None
-                )
-
-            if candidate is None:
-                new_torrents = [
-                    t for t in torrents
-                    if t.get("hash") not in before_hashes
-                ]
-
-                if len(new_torrents) == 1:
-                    candidate = new_torrents[0]
-
-            if not candidate:
-                continue
-
-            torrent_hash = str(
-                candidate.get("hash", "")
-            ).lower()
-
-            torrent_name = candidate.get("name", "")
-
-            if not torrent_hash:
-                continue
-
-            raw_files = qb_torrent_files(
-                opener,
-                torrent_hash
-            )
-
-            if not raw_files:
-                continue
-
-            files = [
-                format_qb_file(item)
-                for item in raw_files
-            ]
-
-            # Mamy już metadane. Teraz jawnie STOP,
-            # zanim użytkownik wybierze pliki.
-            qb_post(
-                opener,
-                "/api/v2/torrents/stop",
-                {
-                    "hashes": torrent_hash
-                }
-            )
-
-            break
-
-        if not torrent_hash:
-            return jsonify({
-                "ok": False,
-                "error": (
-                    "Torrent został dodany, ale nie udało "
-                    "się odnaleźć jego metadanych"
-                )
-            }), 504
-
-        if not files:
-            # Jeżeli znamy hash, zatrzymaj torrent również
-            # w przypadku timeoutu metadanych.
-            try:
-                qb_post(
-                    opener,
-                    "/api/v2/torrents/stop",
-                    {
-                        "hashes": torrent_hash
-                    }
-                )
-            except Exception:
-                pass
-
-            return jsonify({
-                "ok": False,
-                "hash": torrent_hash,
-                "error": (
-                    "Torrent został dodany, ale metadane "
-                    "nie zdążyły się pobrać"
-                )
-            }), 504
-
-        return jsonify({
-            "ok": True,
-            "prepared": True,
-            "hash": torrent_hash,
-            "name": torrent_name,
-            "library": library_id,
-            "libraryName": library["name"],
-            "files": files
-        })
-
+    except QBitTorrentError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print(
             "qBittorrent prepare error:",
@@ -452,234 +192,17 @@ def qbittorrent_start():
     if request.method == "OPTIONS":
         return "", 204
 
+    data = request.get_json(silent=True) or {}
+
     try:
-        data = request.get_json(silent=True) or {}
-
-        torrent_hash = str(
-            data.get("hash", "")
-        ).strip().lower()
-
-        selected = data.get("selected", [])
-
-        if not torrent_hash:
-            return jsonify({
-                "ok": False,
-                "error": "Brak hash torrenta"
-            }), 400
-
-        if not isinstance(selected, list):
-            return jsonify({
-                "ok": False,
-                "error": "Nieprawidłowa lista plików"
-            }), 400
-
-        opener = qb_client()
-
-        # Na wszelki wypadek zatrzymujemy torrent ponownie.
-        qb_post(
-            opener,
-            "/api/v2/torrents/stop",
-            {
-                "hashes": torrent_hash
-            }
+        result = start_torrent(
+            data.get("hash"),
+            data.get("selected", []),
         )
+        return jsonify(result)
 
-        torrents = qb_get(
-            opener,
-            "/api/v2/torrents/info?hashes="
-            + urllib.parse.quote(torrent_hash)
-        ) or []
-
-        if not torrents:
-            return jsonify({
-                "ok": False,
-                "error": "Nie znaleziono torrenta"
-            }), 404
-
-        torrent = torrents[0]
-
-        torrent_name = str(
-            torrent.get("name", "")
-        ).strip()
-
-        save_path = str(
-            torrent.get("save_path", "")
-        ).rstrip("/")
-
-        if not torrent_name:
-            torrent_name = torrent_hash
-
-        if not save_path:
-            return jsonify({
-                "ok": False,
-                "error": "Torrent nie ma ścieżki zapisu"
-            }), 500
-
-        safe_name = torrent_name
-
-        for char in '<>:"/\\|?*':
-            safe_name = safe_name.replace(char, "_")
-
-        safe_name = safe_name.strip(" .")
-
-        if not safe_name:
-            safe_name = torrent_hash
-
-        torrent_folder = f"{save_path}/{safe_name}"
-
-        # Fizycznie tworzymy katalog.
-        os.makedirs(
-            torrent_folder,
-            exist_ok=True
-        )
-
-        # qBittorrent działa jako nas:nasdata (1002:1003).
-        # Folder musi być dla niego zapisywalny.
-        os.chown(torrent_folder, 1002, 1003)
-        os.chmod(torrent_folder, 0o2770)
-
-        # Dopiero teraz qBittorrent może go przyjąć.
-        status = qb_post(
-            opener,
-            "/api/v2/torrents/setLocation",
-            {
-                "hashes": torrent_hash,
-                "location": torrent_folder
-            }
-        )
-
-        if status not in (200, 204):
-            raise RuntimeError(
-                f"setLocation HTTP {status}"
-            )
-
-        # Sprawdzamy, czy qBittorrent NAPRAWDĘ
-        # zaakceptował nową lokalizację.
-        location_ok = False
-        actual_save_path = ""
-
-        for _ in range(20):
-            time.sleep(0.25)
-
-            check = qb_get(
-                opener,
-                "/api/v2/torrents/info?hashes="
-                + urllib.parse.quote(torrent_hash)
-            ) or []
-
-            if not check:
-                continue
-
-            actual_save_path = str(
-                check[0].get("save_path", "")
-            ).rstrip("/")
-
-            if actual_save_path == torrent_folder.rstrip("/"):
-                location_ok = True
-                break
-
-        if not location_ok:
-            return jsonify({
-                "ok": False,
-                "error": (
-                    "qBittorrent nie przyjął nowego folderu. "
-                    "Pobieranie pozostaje zatrzymane."
-                ),
-                "expected": torrent_folder,
-                "actual": actual_save_path
-            }), 409
-
-        files = qb_torrent_files(
-            opener,
-            torrent_hash
-        )
-
-        if not files:
-            return jsonify({
-                "ok": False,
-                "error": "Nie znaleziono plików torrenta"
-            }), 404
-
-        valid_indexes = {
-            int(item["index"])
-            for item in files
-            if item.get("index") is not None
-        }
-
-        try:
-            selected_indexes = {
-                int(index)
-                for index in selected
-            }
-        except (TypeError, ValueError):
-            return jsonify({
-                "ok": False,
-                "error": "Nieprawidłowy indeks pliku"
-            }), 400
-
-        selected_indexes &= valid_indexes
-
-        if not selected_indexes:
-            return jsonify({
-                "ok": False,
-                "error": "Wybierz przynajmniej jeden plik"
-            }), 400
-
-        unwanted_indexes = (
-            valid_indexes - selected_indexes
-        )
-
-        if unwanted_indexes:
-            qb_post(
-                opener,
-                "/api/v2/torrents/filePrio",
-                {
-                    "hash": torrent_hash,
-                    "id": "|".join(
-                        str(i)
-                        for i in sorted(unwanted_indexes)
-                    ),
-                    "priority": "0"
-                }
-            )
-
-        qb_post(
-            opener,
-            "/api/v2/torrents/filePrio",
-            {
-                "hash": torrent_hash,
-                "id": "|".join(
-                    str(i)
-                    for i in sorted(selected_indexes)
-                ),
-                "priority": "1"
-            }
-        )
-
-        # Dopiero TERAZ pozwalamy pobierać.
-        status = qb_post(
-            opener,
-            "/api/v2/torrents/start",
-            {
-                "hashes": torrent_hash
-            }
-        )
-
-        if status not in (200, 204):
-            raise RuntimeError(
-                f"start HTTP {status}"
-            )
-
-        return jsonify({
-            "ok": True,
-            "hash": torrent_hash,
-            "name": torrent_name,
-            "folder": torrent_folder,
-            "savePath": actual_save_path,
-            "selected": len(selected_indexes),
-            "skipped": len(unwanted_indexes)
-        })
-
+    except QBitTorrentError as e:
+        return jsonify(e.payload), e.status_code
     except Exception as e:
         print(
             "qBittorrent start error:",
