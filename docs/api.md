@@ -1,16 +1,16 @@
-# LMS API
+# API LMS
 
-Ludius MS exposes its backend through a JSON HTTP API under `/api`.
+Ludius MS udostępnia backend przez HTTP API w formacie JSON pod ścieżką `/api`.
 
-The API is still part of the 0.x development line. Existing frontend behavior is preserved during refactors, but the public contract is not frozen yet.
+API nadal należy do linii rozwojowej 0.x. Podczas refaktorów zachowywane jest obecne działanie frontendu, ale publiczny kontrakt API nie jest jeszcze zamrożony.
 
-## Discovery
+## Wykrywanie możliwości
 
 ### GET /api/health
 
-Basic process health check.
+Podstawowe sprawdzenie stanu procesu.
 
-Example response:
+Przykładowa odpowiedź:
 
 ```json
 {
@@ -20,9 +20,9 @@ Example response:
 
 ### GET /api/modules
 
-Returns modules known to this LMS build and whether they are enabled.
+Zwraca moduły znane tej wersji LMS oraz informację, czy są włączone.
 
-Example:
+Przykład:
 
 ```json
 {
@@ -41,29 +41,29 @@ Example:
 }
 ```
 
-A disabled module remains discoverable in this manifest with `enabled: false`, but its module routes are not registered.
+Wyłączony moduł pozostaje widoczny w tym manifeście z `enabled: false`, ale jego routes nie są rejestrowane.
 
-## Core API
+## Podstawowe API
 
-| Method | Path | Purpose |
+| Metoda | Ścieżka | Przeznaczenie |
 | --- | --- | --- |
-| GET | `/api/activity?limit=20` | Recent LMS activity. Limit is clamped to 1-100. |
-| GET | `/api/system` | CPU, RAM, storage and uptime summary. |
-| GET | `/api/status` | Reachability/latency for configured services. |
-| GET | `/api/modules` | Module manifest. |
-| GET | `/api/health` | Basic health check. |
+| GET | `/api/activity?limit=20` | Ostatnia aktywność LMS. Limit jest ograniczany do zakresu 1-100. |
+| GET | `/api/system` | Podsumowanie CPU, RAM, pamięci masowej i uptime. |
+| GET | `/api/status` | Dostępność i opóźnienie skonfigurowanych usług. |
+| GET | `/api/modules` | Manifest modułów. |
+| GET | `/api/health` | Podstawowe sprawdzenie stanu. |
 
-Optional status services with no configured URL are omitted from `/api/status`.
+Opcjonalne usługi statusowe bez skonfigurowanego URL są pomijane w `/api/status`.
 
-## Jellyfin module
+## Moduł Jellyfin
 
-The following route exists only when the Jellyfin module is enabled.
+Poniższy route istnieje tylko wtedy, gdy moduł Jellyfin jest włączony.
 
 ### GET /api/jellyfin
 
-Returns the LMS dashboard summary built from Jellyfin counts and sessions.
+Zwraca podsumowanie dashboardu LMS zbudowane na podstawie liczników i sesji Jellyfin.
 
-Current fields include:
+Obecne pola obejmują:
 
 - `online`
 - `movies`
@@ -72,20 +72,20 @@ Current fields include:
 - `songs`
 - `activeSessions`
 
-An unavailable Jellyfin backend returns HTTP 503 with `online: false`.
+Niedostępny backend Jellyfin powoduje zwrócenie HTTP 503 z `online: false`.
 
-## qBittorrent module
+## Moduł qBittorrent
 
-These routes exist only when the qBittorrent module is enabled.
+Poniższe routes istnieją tylko wtedy, gdy moduł qBittorrent jest włączony.
 
-| Method | Path | Purpose |
+| Metoda | Ścieżka | Przeznaczenie |
 | --- | --- | --- |
-| GET | `/api/qbittorrent` | qBittorrent dashboard/status data. |
-| GET | `/api/qbittorrent/libraries` | Available download targets. |
-| POST | `/api/qbittorrent/add` | Prepare a magnet and return torrent/file information. |
-| POST | `/api/qbittorrent/start` | Start a prepared torrent with selected file indexes. |
+| GET | `/api/qbittorrent` | Dane dashboardu/statusu qBittorrent. |
+| GET | `/api/qbittorrent/libraries` | Dostępne miejsca docelowe pobierania. |
+| POST | `/api/qbittorrent/add` | Przygotowuje magnet i zwraca informacje o torrencie/plikach. |
+| POST | `/api/qbittorrent/start` | Uruchamia przygotowany torrent z wybranymi indeksami plików. |
 
-Prepare request:
+Żądanie przygotowania:
 
 ```json
 {
@@ -94,7 +94,7 @@ Prepare request:
 }
 ```
 
-Start request:
+Żądanie uruchomienia:
 
 ```json
 {
@@ -103,56 +103,56 @@ Start request:
 }
 ```
 
-The prepare/start flow intentionally separates metadata inspection from the mutation that starts the download.
+Przepływ prepare/start celowo oddziela sprawdzenie metadanych od operacji, która faktycznie rozpoczyna pobieranie.
 
-## Media API
+## API mediów
 
 ### GET /api/media/titles
 
-Query:
+Parametry zapytania:
 
-- `library` — one of the configured local media library IDs
+- `library` — jeden ze skonfigurowanych identyfikatorów lokalnych bibliotek mediów
 
-Returns the title folders found in that library.
+Zwraca foldery tytułów znalezione w danej bibliotece.
 
 ### GET /api/media/last-episode
 
-Query:
+Parametry zapytania:
 
 - `library`
 - `title`
-- `season` (defaults to 1)
+- `season` (domyślnie 1)
 
-Used by the frontend to determine the latest existing episode for a series/anime title.
+Frontend używa tego endpointu do ustalenia najnowszego istniejącego odcinka dla serialu lub anime.
 
 ### POST /api/media/plan
 
-Builds a filesystem plan without moving or uploading files.
+Buduje plan operacji na systemie plików bez przenoszenia ani przesyłania plików.
 
-Common fields:
+Najczęściej używane pola:
 
-- `type` — `movie` or `series`
+- `type` — `movie` lub `series`
 - `library`
 - `title`
-- `files` — array of file objects with at least `name`; `size` is also accepted
+- `files` — tablica obiektów plików zawierających co najmniej `name`; akceptowane jest również `size`
 
-Movie plans may include `year`.
+Plany filmów mogą zawierać `year`.
 
-Series plans may include `season` and `firstEpisode`. Individual files may override `season` and `episode`.
+Plany seriali mogą zawierać `season` oraz `firstEpisode`. Poszczególne pliki mogą nadpisywać `season` i `episode`.
 
-Planner results include the target library, planned items, conflicts/checks, a `ready` flag, and a tree representation for the frontend.
+Wyniki planera obejmują bibliotekę docelową, zaplanowane elementy, konflikty/sprawdzenia, flagę `ready` oraz reprezentację drzewa dla frontendu.
 
-The planner does not perform the final write itself.
+Planner sam nie wykonuje końcowego zapisu.
 
-## Chunked upload API
+## API uploadu fragmentami
 
-Large browser uploads use resumable server-side sessions.
+Duże pliki przesyłane z przeglądarki korzystają ze wznawialnych sesji po stronie serwera.
 
 ### POST /api/media/upload/init
 
-Creates an upload session.
+Tworzy sesję uploadu.
 
-Example request:
+Przykładowe żądanie:
 
 ```json
 {
@@ -164,46 +164,46 @@ Example request:
 }
 ```
 
-Returns HTTP 201 with an `uploadId`, expected size, current received bytes and maximum chunk size.
+Zwraca HTTP 201 wraz z `uploadId`, oczekiwanym rozmiarem, aktualną liczbą odebranych bajtów i maksymalnym rozmiarem fragmentu.
 
 ### GET /api/media/upload/<upload_id>
 
-Returns the current session state. The client can use `received` as the resume offset.
+Zwraca aktualny stan sesji. Klient może użyć wartości `received` jako offsetu przy wznawianiu.
 
 ### POST /api/media/upload/<upload_id>/chunk
 
-Uploads the next binary chunk.
+Przesyła kolejny binarny fragment.
 
-Required header:
+Wymagany nagłówek:
 
 ```text
 X-Upload-Offset: <current server offset>
 ```
 
-The server rejects an offset that does not match its current file size.
+Serwer odrzuca offset, który nie odpowiada aktualnemu rozmiarowi pliku po jego stronie.
 
 ### POST /api/media/upload/<upload_id>/finalize
 
-Finalizes a complete upload and moves it to the planned destination.
+Finalizuje kompletny upload i przenosi plik do zaplanowanego miejsca docelowego.
 
 ### DELETE /api/media/upload/<upload_id>
 
-Cancels a session and removes its staged partial file.
+Anuluje sesję i usuwa jej częściowo przesłany plik ze stagingu.
 
 ### POST /api/media/upload
 
-Small-file fallback/test uploader using `multipart/form-data`.
+Awaryjny/testowy uploader małych plików korzystający z `multipart/form-data`.
 
-Current form fields:
+Obecne pola formularza:
 
 - `file`
 - `library`
 - `folder`
 - `targetName`
 
-## Errors
+## Błędy
 
-Domain validation errors generally return a 4xx status with a JSON body containing:
+Błędy walidacji domenowej zazwyczaj zwracają status 4xx z odpowiedzią JSON zawierającą:
 
 ```json
 {
@@ -212,35 +212,35 @@ Domain validation errors generally return a 4xx status with a JSON body containi
 }
 ```
 
-Conflicts such as an already existing target may return HTTP 409.
+Konflikty, takie jak już istniejący element docelowy, mogą zwracać HTTP 409.
 
-Unexpected backend failures normally return HTTP 500 or 503 depending on the endpoint.
+Nieoczekiwane błędy backendu zwykle zwracają HTTP 500 lub 503, zależnie od endpointu.
 
-## CORS and caching
+## CORS i cache
 
-The API applies the configured `HOMEPAGE_ORIGIN` globally.
+API globalnie stosuje skonfigurowaną wartość `HOMEPAGE_ORIGIN`.
 
-Current allowed methods:
+Obecnie dozwolone metody:
 
 ```text
 GET, POST, DELETE, OPTIONS
 ```
 
-Current allowed request headers:
+Obecnie dozwolone nagłówki żądań:
 
 ```text
 Content-Type, X-Upload-Offset
 ```
 
-API responses currently send `Cache-Control: no-store`.
+Odpowiedzi API wysyłają obecnie `Cache-Control: no-store`.
 
-## Current route groups
+## Obecne grupy routes
 
-The Flask application is assembled from Blueprints:
+Aplikacja Flask jest składana z Blueprintów:
 
 - core
 - media
-- Jellyfin module
-- qBittorrent module
+- moduł Jellyfin
+- moduł qBittorrent
 
-The module registry decides which optional module Blueprints and background collectors are loaded.
+Rejestr modułów decyduje, które opcjonalne Blueprinty modułów oraz collectory działające w tle są ładowane.

@@ -1,119 +1,119 @@
-# Configuration model
+# Model konfiguracji
 
-Ludius MS separates repository defaults, installation configuration, secrets, and runtime state.
+Ludius MS rozdziela domyślne wartości repozytorium, konfigurację instalacji, sekrety oraz dane stanu aplikacji.
 
-## Local configuration and Git
+## Konfiguracja lokalna i Git
 
-The repository contains a root `.env.example` only as a template.
+Repozytorium zawiera w katalogu głównym wyłącznie plik `.env.example`, który służy jako szablon.
 
-For the current Docker Compose layout:
+Dla obecnego układu Docker Compose:
 
-1. copy the repository `.env.example` to `dashboard-api/.env`
-2. adjust values for the local server
-3. keep the real `.env` local
+1. skopiuj `.env.example` z katalogu głównego repozytorium do `dashboard-api/.env`
+2. dostosuj wartości do lokalnego serwera
+3. właściwy plik `.env` przechowuj wyłącznie lokalnie
 
-`.env`, `secrets/`, runtime data, partial uploads, and local backups are ignored by Git.
+Pliki `.env`, katalogi `secrets/`, dane runtime, częściowo przesłane pliki oraz lokalne kopie zapasowe są ignorowane przez Git.
 
-## 1. Modules
+## 1. Moduły
 
-Current optional modules:
+Obecne moduły opcjonalne:
 
 - Jellyfin
 - qBittorrent
 
-They are controlled with:
+Są kontrolowane przez:
 
 ```env
 ENABLE_JELLYFIN=true
 ENABLE_QBITTORRENT=true
 ```
 
-A disabled module is not registered in the LMS API. Its route is absent and its module-specific background work is not started.
+Wyłączony moduł nie jest rejestrowany w API LMS. Jego route nie istnieje, a praca w tle specyficzna dla tego modułu nie jest uruchamiana.
 
-The current module manifest is available from:
+Aktualny manifest modułów jest dostępny pod:
 
 ```text
 GET /api/modules
 ```
 
-This lets the frontend discover supported modules without guessing from 404 responses.
+Dzięki temu frontend może wykrywać obsługiwane moduły bez zgadywania na podstawie odpowiedzi 404.
 
-## 2. API runtime and frontend access
+## 2. Runtime API i dostęp frontendu
 
-Important values:
+Najważniejsze wartości:
 
-- `LMS_BIND` — address and port used by Gunicorn
-- `LMS_WORKERS` — Gunicorn worker count
-- `LMS_THREADS` — threads per worker
-- `HOMEPAGE_ORIGIN` — frontend origin allowed by CORS
-- `TZ` — container timezone
+- `LMS_BIND` — adres i port używane przez Gunicorn
+- `LMS_WORKERS` — liczba workerów Gunicorn
+- `LMS_THREADS` — liczba wątków na worker
+- `HOMEPAGE_ORIGIN` — origin frontendu dozwolony przez CORS
+- `TZ` — strefa czasowa kontenera
 
-The Docker image does not contain installation-specific IP addresses. Network addresses belong to the local `.env`.
+Obraz Dockera nie zawiera adresów IP specyficznych dla konkretnej instalacji. Adresy sieciowe należą do lokalnego pliku `.env`.
 
-## 3. Service endpoints
+## 3. Endpointy usług
 
-Main module endpoints:
+Główne endpointy modułów:
 
 - `JELLYFIN_URL`
 - `QBITTORRENT_URL`
 
-Optional status-only services:
+Opcjonalne usługi używane wyłącznie do sprawdzania statusu:
 
 - `GDRIVE_URL`
 - `KUMA_URL`
 - `NTFY_URL`
 
-If an optional status URL is blank, that service is omitted from `GET /api/status`.
+Jeśli URL opcjonalnej usługi statusowej jest pusty, usługa jest pomijana w `GET /api/status`.
 
-## 4. Secrets
+## 4. Sekrety
 
-Secrets must never be committed to Git.
+Sekretów nigdy nie należy commitować do Git.
 
 ### Jellyfin
 
-The Jellyfin API key is stored as a local file.
+Klucz API Jellyfin jest przechowywany w lokalnym pliku.
 
-- `JELLYFIN_API_KEY_HOST_PATH` — path on the host
-- `JELLYFIN_API_KEY_FILE` — mounted path inside dashboard-api
+- `JELLYFIN_API_KEY_HOST_PATH` — ścieżka na hoście
+- `JELLYFIN_API_KEY_FILE` — zamontowana ścieżka wewnątrz dashboard-api
 
 ### qBittorrent
 
-qBittorrent credentials are stored in:
+Dane logowania qBittorrent są przechowywane w:
 
 ```text
 dashboard-api/secrets/qbittorrent.env
 ```
 
-with:
+w postaci:
 
 ```env
 QBITTORRENT_USERNAME=...
 QBITTORRENT_PASSWORD=...
 ```
 
-The Compose service loads this file separately from normal installation configuration.
+Usługa Compose wczytuje ten plik oddzielnie od zwykłej konfiguracji instalacji.
 
-## 5. Storage and permissions
+## 5. Pamięć masowa i uprawnienia
 
-`NAS_HOST_PATH` is the storage path on the host.
+`NAS_HOST_PATH` to ścieżka do pamięci masowej na hoście.
 
-`NAS_ROOT` is the same storage as seen inside dashboard-api.
+`NAS_ROOT` wskazuje tę samą pamięć masową widzianą wewnątrz dashboard-api.
 
-Example:
+Przykład:
 
 ```env
 NAS_HOST_PATH=/srv/storage/NAS
 NAS_ROOT=/nas
 ```
 
-LMS-created media uses centrally configured ownership and modes:
+Media tworzone przez LMS korzystają z centralnie skonfigurowanych właściciela i trybów uprawnień:
 
 - `NAS_UID`
 - `NAS_GID`
 - `NAS_DIRECTORY_MODE`
 - `NAS_FILE_MODE`
 
-Media libraries can be overridden independently:
+Ścieżki bibliotek mediów można nadpisać niezależnie:
 
 - `LIBRARY_MOVIES_PATH`
 - `LIBRARY_SERIES_PATH`
@@ -121,19 +121,19 @@ Media libraries can be overridden independently:
 - `LIBRARY_ANIME_MOVIES_PATH`
 - `LIBRARY_DOWNLOADS_PATH`
 
-Blank library values fall back to the current Ludius MS folder layout below `NAS_ROOT`.
+Puste wartości bibliotek powodują użycie obecnego układu folderów Ludius MS znajdującego się pod `NAS_ROOT`.
 
-## 6. Runtime state
+## 6. Dane stanu aplikacji
 
-Persistent LMS state is mounted separately from media storage:
+Trwałe dane stanu LMS są montowane oddzielnie od pamięci z mediami:
 
-- `LMS_DATA_HOST_PATH` — host directory
-- `LMS_DATA_DIR` — path inside dashboard-api
+- `LMS_DATA_HOST_PATH` — katalog na hoście
+- `LMS_DATA_DIR` — ścieżka wewnątrz dashboard-api
 
-It contains state such as activity history, Jellyfin collector state, and upload sessions.
+Obejmują one m.in. historię aktywności, stan collectora Jellyfin oraz sesje uploadu.
 
-Implementation constants such as upload chunk size, activity history limit, collector interval, and supported media extensions remain application-level settings.
+Stałe implementacyjne, takie jak rozmiar fragmentu uploadu, limit historii aktywności, interwał collectora oraz obsługiwane rozszerzenia mediów, pozostają ustawieniami na poziomie aplikacji.
 
-## First-run wizard direction
+## Kierunek kreatora pierwszego uruchomienia
 
-The future installer should generate local configuration rather than modify Python files. It should collect network settings, enabled modules, service credentials/endpoints, storage paths, and permissions; create required files/directories; then validate connectivity before completing setup.
+Przyszły instalator powinien generować lokalną konfigurację zamiast modyfikować pliki Pythona. Powinien zebrać ustawienia sieciowe, włączone moduły, dane logowania i endpointy usług, ścieżki pamięci masowej oraz uprawnienia; utworzyć wymagane pliki i katalogi, a następnie przed zakończeniem konfiguracji sprawdzić łączność.
