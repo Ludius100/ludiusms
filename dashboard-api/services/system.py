@@ -2,6 +2,8 @@ import shutil
 import time
 import urllib.request
 
+from config import NAS_ROOT, SERVICE_STATUS_URLS
+
 
 def cpu_snapshot():
     with open("/proc/stat") as f:
@@ -64,6 +66,13 @@ def check_http(url):
         }
 
 
+def get_service_statuses():
+    return {
+        name: check_http(url)
+        for name, url in SERVICE_STATUS_URLS.items()
+    }
+
+
 def get_system_stats():
     mem = {}
 
@@ -87,7 +96,7 @@ def get_system_stats():
             float(f.read().split()[0])
         )
 
-    disk = shutil.disk_usage("/nas")
+    disk = shutil.disk_usage(NAS_ROOT)
 
     disk_percent = round(
         disk.used / disk.total * 100

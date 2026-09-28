@@ -1,0 +1,46 @@
+services:
+  dashboard-api:
+    build: .
+    container_name: dashboard-api
+    restart: unless-stopped
+
+    network_mode: host
+
+    env_file:
+      - ./secrets/qbittorrent.env
+
+    volumes:
+      - "${JELLYFIN_API_KEY_HOST_PATH:-./secrets/jellyfin_api_key}:${JELLYFIN_API_KEY_FILE:-/run/secrets/jellyfin_api_key}:ro"
+      - "${NAS_HOST_PATH:-/srv/storage/NAS}:${NAS_ROOT:-/nas}"
+      - "${LMS_DATA_HOST_PATH:-./data}:${LMS_DATA_DIR:-/app/data}"
+
+    environment:
+      TZ: "${TZ:-Europe/Warsaw}"
+      LMS_BIND: "${LMS_BIND:-127.0.0.1:8090}"
+      LMS_WORKERS: "${LMS_WORKERS:-1}"
+      LMS_THREADS: "${LMS_THREADS:-4}"
+
+      HOMEPAGE_ORIGIN: "${HOMEPAGE_ORIGIN:-http://127.0.0.1:3000}"
+      ENABLE_JELLYFIN: "${ENABLE_JELLYFIN:-true}"
+      ENABLE_QBITTORRENT: "${ENABLE_QBITTORRENT:-true}"
+      JELLYFIN_URL: "${JELLYFIN_URL:-http://127.0.0.1:8096}"
+      JELLYFIN_API_KEY_FILE: "${JELLYFIN_API_KEY_FILE:-/run/secrets/jellyfin_api_key}"
+      QBITTORRENT_URL: "${QBITTORRENT_URL:-http://127.0.0.1:8080}"
+
+      GDRIVE_URL: "${GDRIVE_URL:-}"
+      KUMA_URL: "${KUMA_URL:-}"
+      NTFY_URL: "${NTFY_URL:-}"
+
+      NAS_ROOT: "${NAS_ROOT:-/nas}"
+      NAS_UID: "${NAS_UID:-1002}"
+      NAS_GID: "${NAS_GID:-1003}"
+      NAS_DIRECTORY_MODE: "${NAS_DIRECTORY_MODE:-2770}"
+      NAS_FILE_MODE: "${NAS_FILE_MODE:-0660}"
+
+      LMS_DATA_DIR: "${LMS_DATA_DIR:-/app/data}"
+
+      LIBRARY_MOVIES_PATH: "${LIBRARY_MOVIES_PATH:-}"
+      LIBRARY_SERIES_PATH: "${LIBRARY_SERIES_PATH:-}"
+      LIBRARY_ANIME_PATH: "${LIBRARY_ANIME_PATH:-}"
+      LIBRARY_ANIME_MOVIES_PATH: "${LIBRARY_ANIME_MOVIES_PATH:-}"
+      LIBRARY_DOWNLOADS_PATH: "${LIBRARY_DOWNLOADS_PATH:-}"

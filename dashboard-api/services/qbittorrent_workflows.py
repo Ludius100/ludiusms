@@ -1,8 +1,8 @@
-import os
 import time
 import urllib.parse
 
 from config import QBITTORRENT_LIBRARIES
+from services.nas import ensure_nas_directory
 from services.qbittorrent import (
     format_qb_file,
     format_torrent,
@@ -371,19 +371,7 @@ def start_torrent(torrent_hash, selected):
         f"{save_path}/{safe_name}"
     )
 
-    os.makedirs(
-        torrent_folder,
-        exist_ok=True,
-    )
-    os.chown(
-        torrent_folder,
-        1002,
-        1003,
-    )
-    os.chmod(
-        torrent_folder,
-        0o2770,
-    )
+    ensure_nas_directory(torrent_folder)
 
     status = qb_post(
         opener,

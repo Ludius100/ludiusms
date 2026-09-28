@@ -10,12 +10,9 @@ from config import (
     UPLOAD_STATE_DIR,
 )
 from services.media_paths import path_is_inside, safe_media_component
+from services.nas import ensure_nas_directory, set_nas_permissions
 
 
-_NAS_UID = 1002
-_NAS_GID = 1003
-_DIRECTORY_MODE = 0o2770
-_FILE_MODE = 0o660
 _STREAM_BLOCK_SIZE = 1024 * 1024
 
 
@@ -28,15 +25,6 @@ class UploadError(Exception):
             "error": message,
             **details,
         }
-
-
-def _set_nas_permissions(path):
-    os.chown(path, _NAS_UID, _NAS_GID)
-
-    if os.path.isdir(path):
-        os.chmod(path, _DIRECTORY_MODE)
-    else:
-        os.chmod(path, _FILE_MODE)
 
 
 def _upload_state_path(upload_id):
@@ -246,11 +234,7 @@ def create_upload_session(data):
             target=destination,
         )
 
-    os.makedirs(
-        UPLOAD_STAGING_DIR,
-        exist_ok=True,
-    )
-    _set_nas_permissions(UPLOAD_STAGING_DIR)
+    ensure_nas_directory(UPLOAD_STAGING_DIR)
 
     upload_id = uuid.uuid4().hex
     staging_path = os.path.join(
@@ -261,7 +245,7 @@ def create_upload_session(data):
     try:
         with open(staging_path, "xb"):
             pass
-        _set_nas_permissions(staging_path)
+        set_nas_permissions(staging_path)
 
         state = {
             "id": upload_id,
@@ -377,7 +361,7 @@ def append_upload_chunk(
             pass
         raise
 
-    _set_nas_permissions(staging_path)
+    set_nas_permissions(staging_path)
 
     result = _public_upload_state(state)
     result["written"] = written
@@ -415,11 +399,7 @@ def finalize_upload(upload_id):
             target=destination,
         )
 
-    os.makedirs(
-        destination_dir,
-        exist_ok=True,
-    )
-    _set_nas_permissions(destination_dir)
+    ensure_nas_directory(destination_dir)
 
     if os.path.exists(destination):
         raise UploadError(
@@ -430,7 +410,7 @@ def finalize_upload(upload_id):
         )
 
     os.replace(staging_path, destination)
-    _set_nas_permissions(destination)
+    set_nas_permissions(destination)
     _delete_upload_state(upload_id)
 
     return {
@@ -528,11 +508,7 @@ def save_small_upload(
             target=destination,
         )
 
-    os.makedirs(
-        destination_dir,
-        exist_ok=True,
-    )
-    _set_nas_permissions(destination_dir)
+    ensure_nas_directory(destination_dir)
 
     temporary_path = os.path.join(
         destination_dir,
@@ -541,7 +517,7 @@ def save_small_upload(
 
     try:
         upload.save(temporary_path)
-        _set_nas_permissions(temporary_path)
+        set_nas_permissions(temporary_path)
 
         if os.path.exists(destination):
             raise UploadError(
@@ -556,7 +532,7 @@ def save_small_upload(
             destination,
         )
         temporary_path = None
-        _set_nas_permissions(destination)
+        set_nas_permissions(destination)
 
     finally:
         if (

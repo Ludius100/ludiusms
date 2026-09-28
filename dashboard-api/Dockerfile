@@ -4,7 +4,9 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir flask gunicorn
 
-COPY app.py config.py /app/
+COPY app.py config.py gunicorn.conf.py /app/
 COPY services/ /app/services/
+COPY routes/ /app/routes/
+COPY modules/ /app/modules/
 
-CMD ["gunicorn", "-b", "100.127.67.28:8090", "--workers", "1", "--threads", "4", "app:app"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:create_app()"]

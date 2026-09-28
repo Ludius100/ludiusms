@@ -9,6 +9,10 @@ from services.activity import add_activity
 from services.jellyfin import get_jellyfin_library_items
 
 
+_activity_collectors_lock = threading.Lock()
+_activity_collectors_started = False
+
+
 def load_jellyfin_state():
     """Load the persisted Jellyfin activity collector state."""
     try:
@@ -185,9 +189,18 @@ def jellyfin_activity_loop():
 
 
 def start_activity_collectors():
-    thread = threading.Thread(
-        target=jellyfin_activity_loop,
-        name="jellyfin-activity",
-        daemon=True
-    )
-    thread.start()
+    global _activity_collectors_started
+
+    with _activity_collectors_lock:
+        if _activity_collectors_started:
+            return False
+
+        thread = threading.Thread(
+            target=jellyfin_activity_loop,
+            name="jellyfin-activity",
+            daemon=True
+        )
+        thread.start()
+        _activity_collectors_started = True
+
+    return True
