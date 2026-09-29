@@ -30,6 +30,8 @@ Bardzo wczesny etap. Serwer powstał najpierw na własne potrzeby — teraz porz
 
 Pierwszy cel: wydanie **Ludius MS 0.1**. Do tego czasu możliwe są duże zmiany i niedokończone funkcje.
 
+Aktualnie rozwijany jest **LMS Installer** — webowy kreator pierwszego uruchomienia. Wykrywa host, storage i dostępne usługi, pozwala wybrać biblioteki i sposób dostępu, buduje plan instalacji oraz prowadzi przez wymagane interakcje. Kod zawiera też testy i privacy scan; pierwsze wykonanie pełnej instalacji będzie sprawdzane na czystej, jednorazowej instancji testowej.
+
 ## 💡 Dlaczego to robię?
 
 Zaczęło się od „postawię sobie bota na Discorda", potem „w sumie mam tu trochę miejsca, zrobię NAS", a skończyło na „chyba piszę własną platformę do serwera multimediów". ¯\\_(ツ)_/¯

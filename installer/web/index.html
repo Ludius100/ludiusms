@@ -1,0 +1,83 @@
+[Reading 79 lines from start (total: 79 lines, 0 remaining)]
+
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>LMS Setup</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div><strong>LMS Setup</strong><span>Test build</span></div>
+      </div>
+      <div class="pill" id="scanState"><span class="dot"></span>Wykrywanie serwera…</div>
+    </header>
+
+    <section class="hero glass">
+      <div>
+        <span class="eyebrow">Kreator pierwszego uruchomienia</span>
+        <h1>Skonfigurujmy Twój serwer.</h1>
+        <p>LMS wykryje tyle, ile może automatycznie. Ty tylko sprawdzisz wyniki i wybierzesz to, czego chcesz użyć.</p>
+      </div>
+      <div class="progress-ring" aria-label="Krok 1 z 7">
+        <strong>1</strong><span>/ 7</span>
+      </div>
+    </section>
+
+    <nav class="steps" aria-label="Postęp konfiguracji">
+      <button class="step active" type="button">Serwer</button>
+      <button class="step" type="button" disabled>Dysk</button>
+      <button class="step" type="button" disabled>Biblioteki</button>
+      <button class="step" type="button" disabled>Usługi</button>
+      <button class="step" type="button" disabled>Sieć</button>
+      <button class="step" type="button" disabled>Podsumowanie</button>
+      <button class="step" type="button" disabled>Instalacja</button>
+    </nav>
+
+    <section class="content-grid">
+      <div class="glass panel">
+        <div class="section-head">
+          <div><span class="eyebrow">Autodetect</span><h2>Ten serwer</h2></div>
+          <button class="ghost-btn" id="rescanBtn" type="button">Skanuj ponownie</button>
+        </div>
+        <div id="serverCards" class="cards" aria-live="polite">
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+        </div>
+      </div>
+
+      <aside class="glass panel side-panel">
+        <span class="eyebrow">Gotowość</span>
+        <h2>Co LMS znalazł?</h2>
+        <div id="checks" class="checks">
+          <div class="check muted">Sprawdzanie systemu…</div>
+        </div>
+        <div class="privacy-note">
+          <strong>Prywatność</strong>
+          <p>Setup pokazuje dane wykryte lokalnie. Sekrety, tokeny i klucze API nie są częścią buildu ani tego raportu.</p>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="actions">
+      <span id="hint">Trwa sprawdzanie hosta.</span>
+      <div class="action-buttons">
+        <button id="backBtn" class="ghost-btn" type="button" hidden>← Wstecz</button>
+        <button id="nextBtn" class="primary-btn" type="button" disabled>Dalej →</button>
+      </div>
+    </footer>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>
+
+[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]
