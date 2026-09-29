@@ -9,17 +9,17 @@ Roadmapa przedstawia planowany kierunek rozwoju projektu. Kolejność i zakres m
 
 Pierwsza wersja możliwa do samodzielnego zainstalowania na czystej instancji Oracle Cloud.
 
-~~- refaktor i uporządkowanie Core
-- bootstrap installer
-- Web Setup pierwszego uruchomienia
-- konfiguracja storage i Tailscale
-- prosty / zaawansowany kreator Jellyfin
-- Dashboard
-- qBittorrent
-- lokalny upload mediów~~
-
-**- testy na czystej instancji Oracle
-- testy zewnętrznych użytkowników**
+- ~~refaktor i uporządkowanie Core~~
+- ~~bootstrap installer~~
+- ~~Web Setup pierwszego uruchomienia~~
+- ~~konfiguracja storage i Tailscale~~
+- ~~prosty / zaawansowany kreator Jellyfin~~
+- ~~Dashboard~~
+- ~~qBittorrent~~
+- ~~lokalny upload mediów~~
+- **tworzenie graficznego instalatora na platformie Oracle Cloud w formie WEB**
+- **testy na czystej instancji Oracle**
+- **testy zewnętrznych użytkowników**
 
 ## 🔧 0.2 — Stability
 
