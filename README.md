@@ -1,5 +1,8 @@
 # Ludius MS
 
+<img width="2172" height="724" alt="Obraz ChatGPT 29 wrz 2026, 21_25_26-1" src="https://github.com/user-attachments/assets/e3a691d5-1f62-4d65-b405-ee23182c9e3e" />
+
+
 **Darmowa, samodzielnie hostowana platforma prywatnego serwera multimediów, tworzona z myślą o Oracle Cloud Always Free.**
 
 > Projekt jest w trakcie rozwoju. Obecna wersja nie jest jeszcze przeznaczona do instalacji przez innych użytkowników.
