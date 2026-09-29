@@ -9,17 +9,17 @@ Roadmapa przedstawia planowany kierunek rozwoju projektu. Kolejność i zakres m
 
 Pierwsza wersja możliwa do samodzielnego zainstalowania na czystej instancji Oracle Cloud.
 
-- refaktor i uporządkowanie Core
+~~- refaktor i uporządkowanie Core
 - bootstrap installer
 - Web Setup pierwszego uruchomienia
 - konfiguracja storage i Tailscale
 - prosty / zaawansowany kreator Jellyfin
 - Dashboard
 - qBittorrent
-- lokalny upload mediów
-- Transfer Manager
-- testy na czystej instancji Oracle
-- testy zewnętrznych użytkowników
+- lokalny upload mediów~~
+
+**- testy na czystej instancji Oracle
+- testy zewnętrznych użytkowników**
 
 ## 🔧 0.2 — Stability
 
@@ -58,6 +58,7 @@ Opcjonalny klient ułatwiający dostęp do serwera.
 - Windows jako pierwsza platforma
 - konfiguracja Tailscale
 - wykrywanie Ludius MS
+- Transfer Manager Agent
 - skróty do Dashboardu i NAS
 - później status serwera i transferów
 
