@@ -9,7 +9,7 @@
 
 ## 👋 Czym jest Ludius MS?
 
-LMS zaczynał jako bot muzyczny na discord, jednak przez błędy weryfikacji yt-dtl, przekształciłem go w mój prywatny serwer z lostmedia. Miałem wiele filmów i seriali, które teraz ciężko znaleźć, jak np. Galactik Football, Avatar Legenda Aanga, czy Stay Alive. Zaskoczony możliwościami darmowego planu Oracle, stworzyłem centrum rozrywki : Jellyfin, klient qB, monitoring Kuna, czy nawet własną wtyczkę gDrive<>NAS. 
+LMS zaczynał jako bot muzyczny na discord, jednak przez błędy weryfikacji yt-dtl, przekształciłem go w mój prywatny serwer z lostmedia. Miałem wiele filmów i seriali, które teraz ciężko znaleźć, jak np. Galactik Football, Avatar Legenda Aanga, czy Stay Alive. Zaskoczony możliwościami darmowego planu Oracle, stworzyłem centrum rozrywki : Jellyfin, klient qB, monitoring Kuna, czy nawet własną wtyczkę gDrive<>NAS. Dodatkowo denerwowało mnie to, że żeby oglądać na chromecaście musiałem folder udostępniać w sieci, a szkoda mi było kupować NAS. Tak więc postawiłem na Oracle Cloud.
 
 ## 🎯 Cel projektu
 
