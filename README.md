@@ -9,9 +9,7 @@
 
 ## 👋 Czym jest Ludius MS?
 
-Ludius MS zaczynał jako prosty bot muzyczny na Discorda, uruchomiony na darmowej instancji Oracle Cloud. Skoro serwer już działał, a Oracle Cloud Always Free oferuje też darmową przestrzeń dyskową — pomysł ewoluował w mały NAS na filmy i seriale, a potem w pełnoprawny prywatny serwer multimediów: Jellyfin, zarządzanie biblioteką, pobieranie i przesyłanie plików, monitoring oraz własny panel webowy.
-
-Projekt powstaje w dużej mierze z pomocą ChatGPT — do nauki, projektowania funkcji, pisania kodu i rozwiązywania problemów — a całość testuję na własnym serwerze.
+LMS zaczynał jako bot muzyczny na discord, jednak przez błędy weryfikacji yt-dtl, przekształciłem go w mój prywatny serwer z lostmedia. Miałem wiele filmów i seriali, które teraz ciężko znaleźć, jak np. Galactik Football, Avatar Legenda Aanga, czy Stay Alive. Zaskoczony możliwościami darmowego planu Oracle, stworzyłem centrum rozrywki : Jellyfin, klient qB, monitoring Kuna, czy nawet własną wtyczkę gDrive<>NAS. 
 
 ## 🎯 Cel projektu
 
@@ -19,7 +17,7 @@ Chcę rozwinąć ten eksperyment w prostą platformę, dzięki której inni też
 
 - 🆓 **Darmowe oprogramowanie** — bez wersji Premium i funkcji za paywallem
 - 🏠 **Twoje media, Twój serwer** — do samodzielnego hostowania
-- ☁️ **Oracle Cloud Always Free** — główna platforma docelowa
+- ☁️ **Oracle Cloud Always Free** — główna platforma docelowa, w przyszłości planuję dodać bare-metal
 - 🎬 **Media w jednym miejscu** — filmy, seriale, anime i inne zbiory
 - 🧩 **Prosta obsługa** — docelowo minimum grzebania w terminalu
 - ❤️ **Projekt dla frajdy i społeczności**
@@ -28,15 +26,18 @@ Chcę rozwinąć ten eksperyment w prostą platformę, dzięki której inni też
 
 Bardzo wczesny etap. Serwer powstał najpierw na własne potrzeby — teraz porządkuję kod i architekturę, usuwam rozwiązania „na szybko" i przygotowuję projekt pod bezpieczną instalację na czystej instancji Oracle Cloud.
 
-Pierwszy cel: wydanie **Ludius MS 0.1**. Do tego czasu możliwe są duże zmiany i niedokończone funkcje.
+Pierwszy cel: wydanie **Ludius MS 0.1**, czyli pierwsza, działająca wersja z prostym instalatorem. Do tego czasu możliwe są duże zmiany i niedokończone funkcje.
 
 Aktualnie rozwijany jest **LMS Installer** — webowy kreator pierwszego uruchomienia. Wykrywa host, storage i dostępne usługi, pozwala wybrać biblioteki i sposób dostępu, buduje plan instalacji oraz prowadzi przez wymagane interakcje. Kod zawiera też testy i privacy scan; pierwsze wykonanie pełnej instalacji będzie sprawdzane na czystej, jednorazowej instancji testowej.
+**LMS Installer** planuje zrobić prosty i przejrzysty możliwie jak Tylko będę mógł. Wiem, ile czasu poświęciłem wraz z Chatem GPT na stworzenie kawałek po kawałku kodu sphagetti, więc nie chcę zrazić kogoś do projektu, tylko ze względu na mniejsze doświadczenie.
+
+**Jeśli chcesz dołączyć i przetestować projekt, skontaktuj się ze mną.**
+
 
 ## 💡 Dlaczego to robię?
 
 Zaczęło się od „postawię sobie bota na Discorda", potem „w sumie mam tu trochę miejsca, zrobię NAS", a skończyło na „chyba piszę własną platformę do serwera multimediów". ¯\\_(ツ)_/¯
-
-Jeśli Ludius MS pomoże komuś zachować własną kolekcję multimediów — cel osiągnięty.
+Zawsze szybko łapałem bakcyla na takie projekty, ale mój słomiany zapał szybko je kończył. Tym razem, bogatszy o doświadczenie i chęci, postanowiłem postawić od A do Z. Nawet przy zerowym zainsteresowaniu, zamierzam bardziej, lub mniej ulepszać projekt.
 
 ---
 
