@@ -4,7 +4,7 @@
 
 Roadmapa przedstawia planowany kierunek rozwoju projektu. Kolejność i zakres mogą zmieniać się wraz z testami i opiniami użytkowników.
 
-## 🧪 0.1 — First Public Build
+## 🧪 0.1 — Pierwszy działający publiczny build
 **Cel: 17.10.2026**
 
 Pierwsza wersja możliwa do samodzielnego zainstalowania na czystej instancji Oracle Cloud.
@@ -21,7 +21,7 @@ Pierwsza wersja możliwa do samodzielnego zainstalowania na czystej instancji Or
 - **testy instalatora na czystej instancji Oracle**
 - **testy zewnętrznych użytkowników**
 
-## 🔧 0.2 — Stability
+## 🔧 0.2 — Poprawa stabilności
 
 Stabilizacja po pierwszym publicznym wydaniu.
 
@@ -31,7 +31,14 @@ Stabilizacja po pierwszym publicznym wydaniu.
 - lepsza obsługa błędów
 - aktualizacje, backup i rollback
 
-## 📊 0.3 — Diagnostics
+## 🖼 0.3 - Poprawki UX
+
+Stworzenie obsługi motywów, personalizacji
+- poprawki i ulepszenie obecnego UX
+- dodanie motywów
+- integracja systemu wg spójności motywów
+
+## 📊 0.4 — Diagnostics
 
 Narzędzia do zarządzania i diagnozowania serwera.
 
@@ -42,7 +49,7 @@ Narzędzia do zarządzania i diagnozowania serwera.
 - Diagnostic Report
 - automatyczne usuwanie sekretów z raportów
 
-## ☁️ 0.4 — Google Drive
+## ☁️ 0.5 — Google Drive
 
 Właściwa integracja Google Drive zastępująca obecny prototyp.
 
@@ -51,7 +58,7 @@ Właściwa integracja Google Drive zastępująca obecny prototyp.
 - przeglądanie plików
 - integracja z Transfer Managerem
 
-## 🖥️ 0.5 — Ludius Desktop
+## 🖥️ 0.6 — Ludius Desktop
 
 Opcjonalny klient ułatwiający dostęp do serwera.
 
@@ -62,7 +69,7 @@ Opcjonalny klient ułatwiający dostęp do serwera.
 - skróty do Dashboardu i NAS
 - później status serwera i transferów
 
-## 🧩 0.6 — LudiusAPI
+## 🧩 0.7 — LudiusAPI
 
 Stabilny interfejs pomiędzy Core a rozszerzeniami.
 
@@ -75,7 +82,7 @@ Stabilny interfejs pomiędzy Core a rozszerzeniami.
 
 Fundament przyszłego systemu modułów.
 
-## 🧱 0.7 — Modules
+## 🧱 0.8 — Modules
 
 Pierwsza wersja architektury modułowej.
 
@@ -85,7 +92,7 @@ Pierwsza wersja architektury modułowej.
 - oficjalne i społecznościowe rozszerzenia
 - Core niezależny od opcjonalnych integracji
 
-## 🧪 0.8 — LudiusLab
+## 🧪 0.9 — LudiusLab
 
 Repozytorium modułów Ludius MS.
 
@@ -95,7 +102,7 @@ Repozytorium modułów Ludius MS.
 - informacje o autorze i uprawnieniach
 - dobrowolne wsparcie twórców bez paywalli
 
-## 🧹 0.9 — 1.0 Preparation
+## 🧹 0.9.X Preparation
 
 Ostatni etap generacji 0.x.
 
@@ -104,7 +111,7 @@ Ostatni etap generacji 0.x.
 - porządki architektoniczne
 - określenie założeń drugiej generacji
 
-## 🚀 1.0 — Second Generation
+## 🚀 1.0 — Official LMS 1.0
 
 Nowa, zoptymalizowana architektura oparta na doświadczeniach zdobytych podczas całej serii `0.x`.
 
