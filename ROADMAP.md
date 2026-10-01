@@ -18,7 +18,7 @@ Pierwsza wersja możliwa do samodzielnego zainstalowania na czystej instancji Or
 - ~~qBittorrent~~
 - ~~lokalny upload mediów~~
 - ~~tworzenie graficznego instalatora na platformie Oracle Cloud w formie WEB~~
-- **testy instalatora na czystej instancji Oracle**
+- ~~testy instalatora na czystej instancji Oracle~~
 - **testy zewnętrznych użytkowników**
 
 ## 🔧 0.2 — Poprawa stabilności
