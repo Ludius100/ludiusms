@@ -1,5 +1,3 @@
-[Reading 216 lines from start (total: 216 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import argparse
 import hashlib
@@ -90,6 +88,8 @@ def _copy_homepage(source, destination):
         encoding="utf-8",
     )
     shutil.copy2(source_css, destination / "custom.css")
+    for name in ("lms-logo.webp", "lms-hero.webp"):
+        _copy_file(source.parent / "assets" / name, destination / "assets" / name)
 
 
 def _write_root_installer(root):

@@ -1,5 +1,3 @@
-[Reading 1000 lines from start (total: 1219 lines, 219 remaining)]
-
 #!/usr/bin/env python3
 import grp
 import os
@@ -19,6 +17,8 @@ from service_bootstrap import (
     jellyfin_authenticate,
     jellyfin_bootstrap,
     jellyfin_get_libraries,
+    jellyfin_install_opensubtitles,
+    jellyfin_update_library_preferences,
     jellyfin_token_ok,
     qbittorrent_bootstrap,
     qbittorrent_login_ok,
@@ -248,6 +248,7 @@ def execute_action(action, plan, runner):
         "lms.start": _lms_start,
         "lms.health": _lms_health,
         "jellyfin.libraries": _jellyfin_libraries,
+        "jellyfin.opensubtitles": _jellyfin_opensubtitles,
     }
     handler = handlers.get(action_id)
     if handler is None:
@@ -355,6 +356,16 @@ def _storage_format(action, plan, runner):
     if runner.enabled:
         if _output(["lsblk", "-dn", "-o", "TYPE", disk]) != "disk":
             raise ExecutionError("Wybrane urządzenie nie jest dyskiem blokowym.")
+        if _output(["lsblk", "-nr", "-o", "TYPE", disk]).splitlines() != ["disk"]:
+            raise ExecutionError(
+                "Dysk ma partycje lub podurządzenia. Formatowanie zablokowane."
+            )
+        if _output(["lsblk", "-dn", "-o", "FSTYPE", disk]):
+            raise ExecutionError(
+                "Dysk ma już system plików. Formatowanie zablokowane."
+            )
+        if _output(["lsblk", "-nr", "-o", "MOUNTPOINTS", disk]):
+            raise ExecutionError("Dysk lub podurządzenie jest zamontowane.")
         if _output(["findmnt", "-rn", "-S", disk]):
             raise ExecutionError("Wybrany dysk jest obecnie zamontowany.")
 
@@ -691,14 +702,26 @@ def _qbittorrent_bootstrap(action, plan, runner):
         timeout=20,
     )
     temporary_password = extract_qbittorrent_temp_password(logs)
-    qbittorrent_bootstrap(
-        base,
-        temporary_password=temporary_password,
-        username=username,
-        password=password,
-        save_path="/nas/Downloads",
+    last_error = None
+    for attempt in range(1, 6):
+        try:
+            qbittorrent_bootstrap(
+                base,
+                temporary_password=temporary_password,
+                username=username,
+                password=password,
+                save_path="/nas/Downloads",
+            )
+            return _action_result(action, runner, start, status="done")
+        except ServiceBootstrapError as exc:
+            last_error = exc
+            if attempt < 5:
+                import time
+                time.sleep(2)
+
+    raise ExecutionError(
+        f"Nie udało się skonfigurować qBittorrent po 5 próbach: {last_error}"
     )
-    return _action_result(action, runner, start, status="done")
 
 
 def _qbittorrent_credentials(action, plan, runner):
@@ -782,6 +805,7 @@ def _jellyfin_bootstrap(action, plan, runner):
         token + "\n",
         action_id=action["id"],
         mode=0o600,
+        preserve_inode=True,
     )
     uid, gid = _service_identity(runner.enabled)
     runner.chown(
@@ -864,9 +888,8 @@ def _lms_secrets(action, plan, runner):
     jellyfin_key_file = secret_dir / "jellyfin_api_key"
 
     qb_password = (
-        secrets.token_urlsafe(30)
-        if runner.enabled
-        else "<generated>"
+        plan.get("config", {}).get("qbittorrent_password")
+        or (secrets.token_urlsafe(30) if runner.enabled else "<generated>")
     )
     jellyfin_password = (
         secrets.token_urlsafe(30)
@@ -1000,5 +1023,286 @@ def _lms_compose(action, plan, runner):
         runtime_dirs.extend([
             INSTALL_ROOT / "jellyfin" / "config",
             INSTALL_ROOT / "jellyfin" / "cache",
+        ])
+    if services["qbittorrent"] == "install":
+        runtime_dirs.append(
+            INSTALL_ROOT / "qbittorrent" / "config"
+        )
+
+    for runtime_dir in runtime_dirs:
+        runner.ensure_dir(
+            runtime_dir,
+            action_id=action["id"],
+            mode=0o750,
+        )
+        runner.chown(
+            runtime_dir,
+            uid,
+            gid,
+            action_id=action["id"],
+            recursive=True,
+        )
+
+    if runner.enabled:
+        runner.copy_tree_whitelist(
+            SOURCE_ROOT / "dashboard-api",
+            INSTALL_ROOT / "dashboard-api",
+            action_id=action["id"],
+            files=API_FILES,
+            directories=API_DIRS,
+        )
+    else:
+        runner.events.append({
+            "action_id": action["id"],
+            "kind": "copy-api-whitelist",
+            "status": "planned",
+            "source": str(SOURCE_ROOT / "dashboard-api"),
+            "destination": str(INSTALL_ROOT / "dashboard-api"),
+        })
+
+    bundle = render_bundle(
+        plan,
+        uid=uid,
+        gid=gid,
+        bind_address=bind_address,
+        allowed_hosts=allowed_hosts,
+    )
+
+    for relative, content in bundle.items():
+        runner.write_text(
+            INSTALL_ROOT / relative,
+            content,
+            action_id=action["id"],
+            mode=0o600 if relative == ".env" else 0o644,
+        )
+
+    if runner.enabled:
+        source_js = (
+            SOURCE_ROOT / "homepage" / "custom.js"
+        ).read_text(encoding="utf-8")
+        prepared_js = prepare_custom_js(source_js)
+
+        runner.write_text(
+            INSTALL_ROOT / "homepage" / "config" / "custom.js",
+            prepared_js,
+            action_id=action["id"],
+            mode=0o644,
+        )
+        runner.copy_file(
+            SOURCE_ROOT / "homepage" / "custom.css",
+            INSTALL_ROOT / "homepage" / "config" / "custom.css",
+            action_id=action["id"],
+            mode=0o644,
+        )
+        runner.ensure_dir(
+            INSTALL_ROOT / "homepage" / "assets",
+            action_id=action["id"],
+            mode=0o755,
+        )
+        for name in ("lms-logo.webp", "lms-hero.webp"):
+            runner.copy_file(
+                SOURCE_ROOT / "homepage" / "assets" / name,
+                INSTALL_ROOT / "homepage" / "assets" / name,
+                action_id=action["id"],
+                mode=0o644,
+            )
+    else:
+        runner.events.append({
+            "action_id": action["id"],
+            "kind": "prepare-portable-frontend",
+            "status": "planned",
+        })
+
+    return _action_result(
+        action,
+        runner,
+        start,
+        install_root=str(INSTALL_ROOT),
+        bind_address=bind_address,
+    )
+
+
+def _lms_start(action, plan, runner):
+    start = len(runner.events)
+    runner.run(
+        [
+            "docker", "compose",
+            "--project-directory", str(INSTALL_ROOT),
+            "--env-file", str(INSTALL_ROOT / ".env"),
+            "-f", str(INSTALL_ROOT / "compose.yaml"),
+            "up", "-d", "--build",
+        ],
+        action_id=action["id"],
+        timeout=1800,
+    )
+    return _action_result(action, runner, start)
+
+
+def _lms_health(action, plan, runner):
+    start = len(runner.events)
+
+    required = [
+        "lms-gateway",
+        "lms-homepage",
+        "lms-api",
+    ]
+    services = plan.get("config", {}).get("services", {})
+    if services.get("jellyfin") == "install":
+        required.append("lms-jellyfin")
+    if services.get("qbittorrent") == "install":
+        required.append("lms-qbittorrent")
+
+    for container in required:
+        if runner.enabled:
+            running = _output([
+                "docker",
+                "inspect",
+                "-f",
+                "{{.State.Running}}",
+                container,
+            ])
+            if running != "true":
+                raise ExecutionError(
+                    f"Kontener {container} nie działa po instalacji."
+                )
+        else:
+            runner.events.append({
+                "action_id": action["id"],
+                "kind": "container-health",
+                "status": "planned",
+                "container": container,
+            })
+
+    return _action_result(
+        action,
+        runner,
+        start,
+        containers=required,
+    )
+
+
+def _jellyfin_libraries(action, plan, runner):
+    start = len(runner.events)
+
+    if not runner.enabled:
+        return _action_result(
+            action,
+            runner,
+            start,
+            status="planned",
+            handler="jellyfin-api",
+        )
+
+    key_file = INSTALL_ROOT / "secrets" / "jellyfin_api_key"
+    token = key_file.read_text(encoding="utf-8").strip()
+    if not token:
+        raise ExecutionError(
+            "Brak tokenu Jellyfin potrzebnego do utworzenia bibliotek."
+        )
+
+    base = service_base_url(plan, 8096, enabled=True)
+    existing = jellyfin_get_libraries(base, token)
+
+    names = {
+        "Filmy": "Filmy",
+        "Seriale": "Seriale",
+        "Anime/Filmy": "Anime • Filmy",
+        "Anime/Seriale": "Anime • Seriale",
+    }
+
+    existing_names = {
+        item.get("Name")
+        for item in existing
+        if isinstance(item, dict)
+    }
+    existing_locations = {
+        location
+        for item in existing
+        if isinstance(item, dict)
+        for location in (item.get("Locations") or [])
+    }
+
+    created = []
+    skipped = []
+
+    for library in action.get("details", {}).get("libraries", []):
+        relative = library["path"]
+        location = "/media/" + relative.strip("/")
+        name = names.get(
+            relative,
+            relative.replace("/", " • "),
+        )
+
+        if name in existing_names or location in existing_locations:
+            skipped.append(name)
+            continue
+
+        jellyfin_add_library(
+            base,
+            token,
+            name=name,
+            collection_type=library["content_type"],
+            paths=[location],
+        )
+
+    # Apply language preferences to both newly created and existing LMS libraries.
+    refreshed = jellyfin_get_libraries(base, token)
+    wanted_locations = {
+        "/media/" + item["path"].strip("/")
+        for item in action.get("details", {}).get("libraries", [])
+    }
+    for item in refreshed:
+        if not isinstance(item, dict):
+            continue
+        if not wanted_locations.intersection(item.get("Locations") or []):
+            continue
+        item_id = item.get("ItemId")
+        if not item_id:
+            continue
+        jellyfin_update_library_preferences(
+            base,
+            token,
+            item_id=item_id,
+            options=item.get("LibraryOptions") or {},
+            metadata_language=action.get("details", {}).get("metadata_language", "pl"),
+            subtitle_language=action.get("details", {}).get("subtitle_language", "pl"),
+        )
+        created.append(name)
+
+    return _action_result(
+        action,
+        runner,
+        start,
+        status="done",
+        created=created,
+        skipped=skipped,
+    )
+
+
+def _jellyfin_opensubtitles(action, plan, runner):
+    start = len(runner.events)
+    if not runner.enabled:
+        return _action_result(
+            action, runner, start, status="planned", handler="jellyfin-package-api"
+        )
+    key_file = INSTALL_ROOT / "secrets" / "jellyfin_api_key"
+    token = key_file.read_text(encoding="utf-8").strip()
+    if not token:
+        raise ExecutionError("Brak tokenu Jellyfin do instalacji Open Subtitles.")
+    base = service_base_url(plan, 8096, enabled=True)
+    jellyfin_install_opensubtitles(base, token)
+    runner.run(
+        ["docker", "restart", "lms-jellyfin"],
+        action_id=action["id"],
+        timeout=120,
+    )
+    wait_http(base, "/System/Info/Public", timeout=180)
+    return _action_result(
+        action,
+        runner,
+        start,
+        status="done",
+        restarted="lms-jellyfin",
+    )
 
 [executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

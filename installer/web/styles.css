@@ -1,5 +1,3 @@
-[Reading 165 lines from start (total: 165 lines, 0 remaining)]
-
 :root{
   color-scheme:dark;
   --bg:#06111c; --text:#f4f8fc; --muted:rgba(220,232,243,.58);
@@ -108,6 +106,13 @@ body:before{content:"";position:fixed;inset:0;background:linear-gradient(125deg,
 .service-choice.selected{border-color:rgba(100,181,255,.55);background:rgba(100,181,255,.1);color:var(--text)}
 .service-plan{margin-top:12px;color:var(--muted);font-size:12px}
 .service-plan strong{color:var(--text)}
+.qb-password-box{margin-top:14px;padding:13px;border:1px solid var(--border);border-radius:12px;background:rgba(100,181,255,.035)}
+.qb-password-box>strong{display:block;font-size:13px}.qb-password-box>small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.qb-password-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.qb-password-fields label{display:grid;gap:5px}.qb-password-fields span{font-size:11px;color:var(--muted)}
+.qb-password-fields input{width:100%;min-width:0;border:1px solid var(--border);border-radius:9px;background:rgba(4,10,17,.55);color:var(--text);padding:10px}
+.qb-password-fields input:focus{outline:0;border-color:var(--accent)}
+@media(max-width:520px){.qb-password-fields{grid-template-columns:1fr}}
 
 .network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .network-option{min-height:150px;text-align:left;border:1px solid var(--border);border-radius:16px;padding:18px;background:rgba(4,10,17,.27);color:var(--text);cursor:pointer}

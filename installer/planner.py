@@ -1,5 +1,3 @@
-[Reading 252 lines from start (total: 252 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 from copy import deepcopy
 from pathlib import Path
@@ -16,6 +14,7 @@ LIBRARY_DEFS = {
 SERVICE_IDS = ("tailscale", "jellyfin", "qbittorrent")
 SERVICE_PLANS = ("existing", "install", "skip")
 NETWORK_MODES = ("tailscale", "direct")
+JELLYFIN_LANGUAGES = ("pl", "en", "de", "fr", "es", "it", "ja")
 
 
 class PlanError(ValueError):
@@ -104,6 +103,40 @@ def _storage_strategy(disk):
         "media_root": "/srv/lms-media",
         "destructive": True,
     }
+def _normalize_qbittorrent_password(value):
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str) or not 10 <= len(value) <= 128:
+        raise PlanError("Hasło qBittorrent musi mieć 10–128 znaków.")
+    if not value.isascii() or any(
+        ch.isspace() or ch in "\\\"'\\\\$" for ch in value
+    ):
+        raise PlanError(
+            "Hasło qBittorrent: użyj znaków ASCII bez spacji, cudzysłowów, "
+            "ukośnika odwrotnego i znaku dolara."
+        )
+    return value
+
+
+def _normalize_jellyfin_settings(value, enabled):
+    if not enabled:
+        return {
+            "metadata_language": "pl",
+            "subtitle_language": "pl",
+            "opensubtitles": False,
+        }
+    value = value if isinstance(value, dict) else {}
+    metadata = value.get("metadata_language", "pl")
+    subtitles = value.get("subtitle_language", "pl")
+    if metadata not in JELLYFIN_LANGUAGES or subtitles not in JELLYFIN_LANGUAGES:
+        raise PlanError("Nieobsługiwany język konfiguracji Jellyfin.")
+    return {
+        "metadata_language": metadata,
+        "subtitle_language": subtitles,
+        "opensubtitles": bool(value.get("opensubtitles", False)),
+    }
+
+
 def normalize_config(payload, host):
     if not isinstance(payload, dict):
         raise PlanError("Nieprawidłowy format konfiguracji.")
@@ -119,13 +152,23 @@ def normalize_config(payload, host):
     if network == "tailscale" and services["tailscale"] == "skip":
         raise PlanError("Dostęp przez Tailscale wymaga włączonej usługi Tailscale.")
 
-    return {
+    jellyfin = _normalize_jellyfin_settings(payload.get("jellyfin"), services["jellyfin"] != "skip")
+
+    result = {
         "disk": disk.get("path"),
         "storage": storage,
         "libraries": libraries,
         "services": services,
         "network": network,
+        "jellyfin": jellyfin,
     }
+    if services["qbittorrent"] == "install":
+        password = _normalize_qbittorrent_password(
+            payload.get("qbittorrent_password")
+        )
+        if password:
+            result["qbittorrent_password"] = password
+    return result
 
 
 def _action(action_id, phase, title, *, destructive=False, interaction=False, details=None):
@@ -235,8 +278,18 @@ def build_plan(payload, host):
             "jellyfin.libraries",
             "configure",
             "Skonfiguruj biblioteki Jellyfin",
-            details={"libraries": jellyfin_libraries},
+            details={
+                "libraries": jellyfin_libraries,
+                "metadata_language": config["jellyfin"]["metadata_language"],
+                "subtitle_language": config["jellyfin"]["subtitle_language"],
+            },
         ))
+        if config["jellyfin"]["opensubtitles"]:
+            actions.append(_action(
+                "jellyfin.opensubtitles",
+                "configure",
+                "Zainstaluj wtyczkę Open Subtitles",
+            ))
 
     actions.append(_action(
         "lms.health",

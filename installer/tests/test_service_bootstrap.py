@@ -1,5 +1,3 @@
-[Reading 221 lines from start (total: 221 lines, 0 remaining)]
-
 import json
 import sys
 import threading
@@ -44,6 +42,20 @@ class FakeServicesHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path == "/Startup/Configuration":
+            payload = {
+                "ServerName": "",
+                "UICulture": "en-US",
+                "MetadataCountryCode": "US",
+                "PreferredMetadataLanguage": "en",
+            }
+            return self._reply(
+                200,
+                json.dumps(payload).encode(),
+                {"Content-Type": "application/json"},
+            )
+        if self.path == "/Startup/User":
+            return self._reply(200, json.dumps({"Name": "initial-admin"}).encode())
         if self.path == "/System/Info/Public":
             return self._reply(200, b"{}")
         if self.path == "/Library/VirtualFolders":
@@ -158,6 +170,17 @@ class ServiceBootstrapTests(unittest.TestCase):
         self.assertEqual(
             extract_qbittorrent_temp_password(logs),
             "AbC123xyz",
+        )
+
+    def test_extract_qbittorrent_uses_latest_temp_password(self):
+        logs = (
+            "A temporary password is provided for this session: OLD123\n"
+            "service restarting\n"
+            "A temporary password is provided for this session: NEW456\n"
+        )
+        self.assertEqual(
+            extract_qbittorrent_temp_password(logs),
+            "NEW456",
         )
 
     def test_qbittorrent_bootstrap_changes_credentials(self):

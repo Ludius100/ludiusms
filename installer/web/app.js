@@ -1,5 +1,3 @@
-[Reading 796 lines from start (total: 796 lines, 0 remaining)]
-
 const $ = (q) => document.querySelector(q);
 const setupToken = new URLSearchParams(window.location.search).get("token") || "";
 
@@ -26,6 +24,11 @@ const servicePlans = {
 };
 let networkMode = "tailscale";
 let tailscaleAuth = "interactive";
+let qbPassword = "";
+let qbPasswordConfirm = "";
+let jellyfinMetadataLanguage = "pl";
+let jellyfinSubtitleLanguage = "pl";
+let jellyfinOpenSubtitles = true;
 const libraryDefs = [
   {id: "movies", name: "Filmy", paths: ["Filmy/"], jellyfin: "Movies"},
   {id: "series", name: "Seriale", paths: ["Seriale/"], jellyfin: "Shows"},
@@ -62,7 +65,7 @@ function setActiveStep(value) {
   });
   document.querySelector(".progress-ring strong").textContent = String(value);
   $("#backBtn").hidden = value === 1;
-  if (value !== 7) $("#nextBtn").textContent = "Dalej →";
+  if (value !== 8) $("#nextBtn").textContent = "Dalej →";
 }
 
 function renderChecks(data) {
@@ -216,6 +219,18 @@ function serviceActionLabel(plan) {
   return "Pomiń";
 }
 
+function qbPasswordError() {
+  if (servicePlans.qbittorrent !== "install") return "";
+  if (!qbPassword && !qbPasswordConfirm) return "";
+  if (qbPassword.length < 10 || qbPassword.length > 128) return "Hasło musi mieć 10–128 znaków.";
+  if ([...qbPassword].some((ch) =>
+    ch.charCodeAt(0) < 33 || ch.charCodeAt(0) > 126 ||
+    ch === '"' || ch === "'" || ch.charCodeAt(0) === 92 || ch === "$"
+  )) return "Hasło zawiera niedozwolony znak.";
+  if (qbPassword !== qbPasswordConfirm) return "Hasła qBittorrent się różnią.";
+  return "";
+}
+
 function renderServices(data) {
   setActiveStep(4);
   initServicePlans(data);
@@ -233,6 +248,17 @@ function renderServices(data) {
     const buttons = options.map(([value, label]) =>
       `<button class="service-choice ${current === value ? "selected" : ""}" data-service="${esc(service.id)}" data-plan="${esc(value)}" type="button">${esc(label)}</button>`
     ).join("");
+    const qbCredentials = service.id === "qbittorrent" && current === "install"
+      ? `<div class="qb-password-box">
+          <strong>Hasło qBittorrent (login: lmsadmin)</strong>
+          <small>Opcjonalnie. Pozostaw oba pola puste, aby wygenerować bezpieczne hasło.</small>
+          <div class="qb-password-fields">
+            <label><span>Nowe hasło</span><input id="qbPassword" type="password" autocomplete="new-password" value="${esc(qbPassword)}"></label>
+            <label><span>Powtórz hasło</span><input id="qbPasswordConfirm" type="password" autocomplete="new-password" value="${esc(qbPasswordConfirm)}"></label>
+          </div>
+          <small id="qbPasswordHelp">Własne hasło: 10–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
+        </div>`
+      : "";
 
     return `<article class="service-card">
       <div class="service-head">
@@ -244,6 +270,7 @@ function renderServices(data) {
       </div>
       <div class="service-actions">${buttons}</div>
       <div class="service-plan">Plan: <strong>${esc(serviceActionLabel(current))}</strong></div>
+      ${qbCredentials}
     </article>`;
   }).join("");
 
@@ -253,6 +280,17 @@ function renderServices(data) {
       renderServices(data);
     });
   });
+  for (const [selector, field] of [["#qbPassword", "password"], ["#qbPasswordConfirm", "confirm"]]) {
+    $(selector)?.addEventListener("input", (event) => {
+      if (field === "password") qbPassword = event.target.value;
+      else qbPasswordConfirm = event.target.value;
+      const issue = qbPasswordError();
+      $("#qbPasswordHelp").textContent = issue || "Hasło zostanie ustawione podczas instalacji.";
+      $("#nextBtn").disabled = Boolean(issue);
+    });
+  }
+  const qbIssue = qbPasswordError();
+  if ($("#qbPasswordHelp") && qbIssue) $("#qbPasswordHelp").textContent = qbIssue;
 
   const installCount = Object.values(servicePlans).filter((plan) => plan === "install").length;
   const existingCount = Object.values(servicePlans).filter((plan) => plan === "existing").length;
@@ -266,11 +304,49 @@ function renderServices(data) {
   $("#hint").textContent = safeMode
     ? "Przyciski układają plan. Na tym serwerze nic nie zostanie zainstalowane ani przeinstalowane."
     : "Wybrane instalacje zostaną wykonane dopiero po zatwierdzeniu podsumowania.";
+  $("#nextBtn").disabled = Boolean(qbIssue);
+}
+
+function renderJellyfinSettings() {
+  setActiveStep(5);
+  const enabled = servicePlans.jellyfin !== "skip";
+  const languages = [
+    ["pl", "Polski"], ["en", "English"], ["de", "Deutsch"],
+    ["fr", "Français"], ["es", "Español"], ["it", "Italiano"], ["ja", "日本語"]
+  ];
+  const options = (selected) => languages.map(([value, label]) =>
+    '<option value="' + value + '"' + (selected === value ? ' selected' : '') + '>' + label + '</option>'
+  ).join("");
+
+  $("#serverCards").className = "service-grid";
+  if (enabled) {
+    $("#serverCards").innerHTML =
+      '<article class="service-card"><div class="service-head"><div><strong>Konfiguracja Jellyfin</strong>' +
+      '<small>Ustawienia zostaną zastosowane do bibliotek utworzonych przez Ludius MS.</small></div></div>' +
+      '<div class="qb-password-fields">' +
+      '<label><span>Język metadanych bibliotek</span><select id="jfMetadataLanguage">' + options(jellyfinMetadataLanguage) + '</select></label>' +
+      '<label><span>Język pobieranych napisów</span><select id="jfSubtitleLanguage">' + options(jellyfinSubtitleLanguage) + '</select></label>' +
+      '</div><label class="destructive-confirm"><input id="jfOpenSubtitles" type="checkbox"' +
+      (jellyfinOpenSubtitles ? ' checked' : '') +
+      '><span>Zainstaluj wtyczkę Open Subtitles</span></label>' +
+      '<small>Po instalacji wtyczki konto OpenSubtitles.com konfiguruje się w panelu Jellyfin.</small></article>';
+  } else {
+    $("#serverCards").innerHTML =
+      '<article class="service-card"><strong>Jellyfin pominięty</strong><small>Konfiguracja języków i wtyczek nie będzie wykonywana.</small></article>';
+  }
+
+  $("#jfMetadataLanguage")?.addEventListener("change", (event) => { jellyfinMetadataLanguage = event.target.value; });
+  $("#jfSubtitleLanguage")?.addEventListener("change", (event) => { jellyfinSubtitleLanguage = event.target.value; });
+  $("#jfOpenSubtitles")?.addEventListener("change", (event) => { jellyfinOpenSubtitles = event.target.checked; });
+  $("#checks").innerHTML = enabled
+    ? '<div class="check ok">Preset Jellyfin gotowy</div><div class="check muted">Ustawienia można później zmienić w panelu Jellyfin.</div>'
+    : '<div class="check muted">Jellyfin nie jest częścią tej instalacji.</div>';
+  $("#hint").textContent = enabled ? "Wybierz domyślne ustawienia bibliotek i napisów." : "Przejdź dalej.";
   $("#nextBtn").disabled = false;
 }
 
 function renderNetwork() {
-  setActiveStep(5);
+  setActiveStep(6);
   const tailscaleSkipped = servicePlans.tailscale === "skip";
   if (tailscaleSkipped && networkMode === "tailscale") networkMode = "direct";
 
@@ -306,12 +382,21 @@ function summaryRow(label, value) {
 }
 
 function buildSelectionPayload() {
-  return {
+  const payload = {
     disk: selectedDisk,
     libraries: Array.from(selectedLibraries),
     services: {...servicePlans},
-    network: networkMode
+    network: networkMode,
+    jellyfin: {
+      metadata_language: jellyfinMetadataLanguage,
+      subtitle_language: jellyfinSubtitleLanguage,
+      opensubtitles: jellyfinOpenSubtitles
+    }
   };
+  if (servicePlans.qbittorrent === "install" && qbPassword) {
+    payload.qbittorrent_password = qbPassword;
+  }
+  return payload;
 }
 
 function renderPlanActions(plan) {
@@ -329,7 +414,7 @@ function renderPlanActions(plan) {
 }
 
 async function renderSummary() {
-  setActiveStep(6);
+  setActiveStep(7);
   currentPlan = null;
   $("#nextBtn").disabled = true;
   $("#serverCards").className = "summary-card";
@@ -354,6 +439,12 @@ async function renderSummary() {
         summaryRow("Punkt montowania", cfg.storage.mountpoint) +
         summaryRow("Biblioteki", libraryNames.join(", ")) +
         summaryRow("Sieć", cfg.network === "tailscale" ? "Tailscale" : "Bez Tailscale") +
+        (cfg.services.jellyfin !== "skip" ? summaryRow("Jellyfin • metadane", cfg.jellyfin.metadata_language) : "") +
+        (cfg.services.jellyfin !== "skip" ? summaryRow("Jellyfin • napisy", cfg.jellyfin.subtitle_language) : "") +
+        (cfg.services.jellyfin !== "skip" ? summaryRow("Open Subtitles", cfg.jellyfin.opensubtitles ? "Zainstaluj" : "Pomiń") : "") +
+        (cfg.services.qbittorrent === "install"
+          ? summaryRow("Hasło qBittorrent", qbPassword ? "Własne hasło" : "Wygenerowane automatycznie")
+          : "") +
       '</div>' +
       '<div class="plan-title">Plan operacji</div>' +
       '<div class="plan-actions">' + renderPlanActions(currentPlan) + '</div>';
@@ -480,8 +571,8 @@ function renderJobProgress(job, active = false) {
       : `<div class="check ${job.status === "failed" ? "warn" : "muted"}">Status: ${esc(statusNames[job.status] || job.status)}</div>` +
         (active ? '<div class="check muted">Backend wykonuje kolejną akcję…</div>' : "");
 
-  $("#nextBtn").disabled = true;
-  $("#nextBtn").textContent = job.status === "done" ? "Gotowe ✓" : "Instalacja trwa";
+  $("#nextBtn").disabled = job.status !== "done";
+  $("#nextBtn").textContent = job.status === "done" ? "Przejdź do dashboardu →" : "Instalacja trwa";
 
   $("#resumeInstallBtn")?.addEventListener("click", () => transitionInstallJob("resume"));
   $("#retryInstallBtn")?.addEventListener("click", () => transitionInstallJob("retry"));
@@ -680,7 +771,7 @@ async function startInstallJob() {
 }
 
 function renderInstallPreview(data) {
-  setActiveStep(7);
+  setActiveStep(8);
   stopInstallPolling();
 
   const changesAllowed = data.installer?.changes_allowed === true;
@@ -726,7 +817,9 @@ function renderInstallPreview(data) {
 async function scan() {
   const btn = $("#rescanBtn");
   btn.disabled = true;
-  $("#nextBtn").disabled = true;
+  if (!(step === 8 && installJobId)) {
+    $("#nextBtn").disabled = true;
+  }
   $("#scanState").innerHTML = '<span class="dot"></span>Wykrywanie serwera…';
   $("#serverCards").className = "cards";
   $("#serverCards").innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
@@ -737,9 +830,10 @@ async function scan() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     hostData = await response.json();
     $("#scanState").innerHTML = '<span class="dot" style="background:var(--ok)"></span>Skan zakończony';
-    if (step === 7) renderInstallPreview(hostData);
-    else if (step === 6) renderSummary();
-    else if (step === 5) renderNetwork();
+    if (step === 8) renderInstallPreview(hostData);
+    else if (step === 7) renderSummary();
+    else if (step === 6) renderNetwork();
+    else if (step === 5) renderJellyfinSettings();
     else if (step === 4) renderServices(hostData);
     else if (step === 3) renderLibraries();
     else if (step === 2) renderDisks(hostData);
@@ -757,8 +851,9 @@ async function scan() {
 $("#rescanBtn").addEventListener("click", scan);
 $("#backBtn").addEventListener("click", () => {
   if (!hostData) return;
-  if (step === 7) renderSummary();
-  else if (step === 6) renderNetwork();
+  if (step === 8) renderSummary();
+  else if (step === 7) renderNetwork();
+  else if (step === 6) renderJellyfinSettings();
   else if (step === 5) renderServices(hostData);
   else if (step === 4) renderLibraries();
   else if (step === 3) renderDisks(hostData);
@@ -779,18 +874,26 @@ $("#nextBtn").addEventListener("click", () => {
     return;
   }
   if (step === 4) {
-    renderNetwork();
+    renderJellyfinSettings();
     return;
   }
   if (step === 5) {
-    renderSummary();
+    renderNetwork();
     return;
   }
   if (step === 6) {
-    renderInstallPreview(hostData);
+    renderSummary();
     return;
   }
   if (step === 7) {
+    renderInstallPreview(hostData);
+    return;
+  }
+  if (step === 8) {
+    if (installJobId && $("#nextBtn").textContent.startsWith("Przejdź do dashboardu")) {
+      window.location.href = "http://127.0.0.1:3000/";
+      return;
+    }
     startInstallJob();
   }
 });

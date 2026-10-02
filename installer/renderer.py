@@ -1,5 +1,3 @@
-[Reading 231 lines from start (total: 231 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 
 def _bool(value):
@@ -64,8 +62,16 @@ def render_app_env(plan, *, uid, gid, timezone="Europe/Warsaw"):
 
 def render_caddyfile():
     return """:3000 {
-    handle /api/* {
+    @lms_api {
+        path /api/activity /api/health /api/modules /api/system /api/status /api/jellyfin /api/jellyfin/* /api/qbittorrent /api/qbittorrent/* /api/media /api/media/*
+    }
+    handle @lms_api {
         reverse_proxy lms-api:8090
+    }
+
+    handle /lms-assets/* {
+        root * /srv
+        file_server
     }
 
     handle {
@@ -100,6 +106,7 @@ def _compose_header():
       - "${LMS_BIND_ADDRESS}:3000:3000"
     volumes:
       - ./gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./homepage/assets:/srv/lms-assets:ro
     networks:
       - lms
 
@@ -178,8 +185,8 @@ def _qbittorrent_service():
     restart: unless-stopped
     ports:
       - "${LMS_BIND_ADDRESS}:8080:8080/tcp"
-      - "6881:6881/tcp"
-      - "6881:6881/udp"
+      - "${LMS_BIND_ADDRESS}:6881:6881/tcp"
+      - "${LMS_BIND_ADDRESS}:6881:6881/udp"
     environment:
       PUID: "${LMS_UID}"
       PGID: "${LMS_GID}"

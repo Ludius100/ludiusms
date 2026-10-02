@@ -1,5 +1,3 @@
-[Reading 284 lines from start (total: 284 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import http.cookiejar
 import json
@@ -43,6 +41,10 @@ def _request(url, *, method="GET", headers=None, data=None, opener=None, timeout
         raise ServiceBootstrapError(
             f"HTTP {exc.code} dla {url}: {body[:300]!r}"
         ) from exc
+    except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as exc:
+        raise ServiceBootstrapError(
+            f"Błąd połączenia z {url}: {exc}"
+        ) from exc
 def wait_http(base_url, path="/", *, timeout=120, interval=2):
     deadline = time.monotonic() + timeout
     url = base_url.rstrip("/") + path
@@ -74,10 +76,15 @@ _QB_TEMP_PASSWORD_PATTERNS = (
 
 
 def extract_qbittorrent_temp_password(log_text):
+    matches = []
+    text = log_text or ""
     for pattern in _QB_TEMP_PASSWORD_PATTERNS:
-        match = pattern.search(log_text or "")
-        if match:
-            return match.group(1).strip()
+        matches.extend(pattern.finditer(text))
+    if matches:
+        # Container logs can contain passwords from multiple WebUI starts.
+        # The newest temporary password is the last occurrence in the log.
+        match = max(matches, key=lambda item: item.start())
+        return match.group(1).strip()
     raise ServiceBootstrapError(
         "Nie znaleziono tymczasowego hasła qBittorrent w logu kontenera."
     )
@@ -96,14 +103,22 @@ def _qb_login(base_url, username, password):
         "Origin": base,
         "Referer": base + "/",
     }
-    _, body = _request(
+    status, body = _request(
         base + "/api/v2/auth/login",
         method="POST",
         headers=headers,
         data=form,
         opener=opener,
     )
-    if body.decode("utf-8", errors="replace").strip() != "Ok.":
+    if status == 204:
+        # Some WebUI versions respond with No Content after login.
+        # Never treat this as success without a session and an authenticated API call.
+        if not any(cookie.name == "SID" or cookie.name.startswith("QBT_SID_") for cookie in jar):
+            raise ServiceBootstrapError(
+                "qBittorrent zwrócił HTTP 204 bez ciasteczka sesji."
+            )
+        _request(base + "/api/v2/app/preferences", opener=opener)
+    elif body.decode("utf-8", errors="replace").strip() != "Ok.":
         raise ServiceBootstrapError(
             "qBittorrent odrzucił dane logowania."
         )
@@ -141,17 +156,36 @@ def qbittorrent_bootstrap(
         "Origin": base,
         "Referer": base + "/",
     }
-    _request(
-        base + "/api/v2/app/setPreferences",
-        method="POST",
-        headers=headers,
-        data=form,
-        opener=opener,
-    )
+    update_error = None
+    try:
+        _request(
+            base + "/api/v2/app/setPreferences",
+            method="POST",
+            headers=headers,
+            data=form,
+            opener=opener,
+        )
+    except ServiceBootstrapError as exc:
+        # qBittorrent can briefly restart/reset its WebUI after changing
+        # WebUI credentials. The request may therefore fail even though
+        # the new credentials were already saved.
+        update_error = exc
 
-    # Verify the final credentials, not only the temporary session.
-    _qb_login(base, username, password)
-    return True
+    # Verify the final credentials with a short grace period. This also
+    # makes a connection reset during setPreferences harmless.
+    deadline = time.monotonic() + 30
+    last_error = update_error
+    while time.monotonic() < deadline:
+        try:
+            _qb_login(base, username, password)
+            return True
+        except ServiceBootstrapError as exc:
+            last_error = exc
+            time.sleep(1)
+
+    raise ServiceBootstrapError(
+        f"qBittorrent nie przyjął końcowych danych logowania: {last_error}"
+    )
 
 
 def _jellyfin_json(base_url, path, payload=None, *, token=None, method="POST"):
@@ -177,6 +211,37 @@ def jellyfin_bootstrap(
     base = base_url.rstrip("/")
     wait_http(base, "/System/Info/Public", timeout=180)
 
+    # /System/Info/Public can answer before Jellyfin's startup wizard API is
+    # ready.  During that short window Jellyfin may serve the web client HTML
+    # for /Startup/Configuration.  Wait for an actual JSON startup payload
+    # before sending configuration.
+    deadline = time.monotonic() + 180
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            _, body = _jellyfin_json(
+                base,
+                "/Startup/Configuration",
+                method="GET",
+            )
+            payload = json.loads(body.decode("utf-8"))
+            if isinstance(payload, dict) and "UICulture" in payload:
+                break
+            last_error = ServiceBootstrapError(
+                "Jellyfin startup API zwróciło niepełną konfigurację."
+            )
+        except (
+            ServiceBootstrapError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ) as exc:
+            last_error = exc
+        time.sleep(1)
+    else:
+        raise ServiceBootstrapError(
+            f"Jellyfin startup API nie było gotowe w czasie: {last_error}"
+        )
+
     _jellyfin_json(
         base,
         "/Startup/Configuration",
@@ -186,6 +251,8 @@ def jellyfin_bootstrap(
             "PreferredMetadataLanguage": metadata_language,
         },
     )
+    # Jellyfin 12 may initialize its first user when this endpoint is read.
+    _jellyfin_json(base, "/Startup/User", method="GET")
     _jellyfin_json(
         base,
         "/Startup/User",
@@ -205,7 +272,7 @@ def jellyfin_authenticate(base_url, *, username, password):
     base = base_url.rstrip("/")
     headers = {
         "Content-Type": "application/json",
-        "X-Emby-Authorization": (
+        "Authorization": (
             'MediaBrowser Client="LMS Installer", '
             'Device="Server", DeviceId="lms-installer", Version="0.1"'
         ),
@@ -280,6 +347,40 @@ def jellyfin_add_library(
         base_url,
         "/Library/VirtualFolders?" + query,
         {},
+        token=token,
+        method="POST",
+    )
+    return True
+
+
+OPEN_SUBTITLES_GUID = "4b9ed42f-5185-48b5-9803-6ff2989014c4"
+
+
+def jellyfin_install_opensubtitles(base_url, token):
+    """Install the newest compatible Open Subtitles package from Jellyfin catalog."""
+    query = urllib.parse.urlencode({"assemblyGuid": OPEN_SUBTITLES_GUID})
+    _jellyfin_json(
+        base_url,
+        "/Packages/Installed/Open%20Subtitles?" + query,
+        {},
+        token=token,
+        method="POST",
+    )
+    return True
+
+
+def jellyfin_update_library_preferences(
+    base_url, token, *, item_id, options, metadata_language, subtitle_language
+):
+    """Preserve Jellyfin defaults while applying LMS language preferences."""
+    updated = dict(options or {})
+    updated["PreferredMetadataLanguage"] = metadata_language
+    updated["SubtitleDownloadLanguages"] = [subtitle_language]
+    updated["SaveSubtitlesWithMedia"] = True
+    _jellyfin_json(
+        base_url,
+        "/Library/VirtualFolders/LibraryOptions",
+        {"Id": item_id, "LibraryOptions": updated},
         token=token,
         method="POST",
     )
