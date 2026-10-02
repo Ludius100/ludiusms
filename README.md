@@ -32,7 +32,7 @@ Pierwszy cel: wydanie **Ludius MS 0.1**, czyli pierwsza, działająca wersja z p
 Aktualnie rozwijany jest **LMS Installer** — webowy kreator pierwszego uruchomienia. Wykrywa host, storage i dostępne usługi, pozwala wybrać biblioteki i sposób dostępu, buduje plan instalacji oraz prowadzi przez wymagane interakcje. Kod zawiera testy i privacy scan. Pełną instalację sprawdzono na czystej testowej maszynie Ubuntu; przed wydaniem publicznym trwają dalsze testy i poprawki.
 **LMS Installer** planuje zrobić prosty i przejrzysty możliwie jak Tylko będę mógł. Wiem, ile czasu poświęciłem wraz z Chatem GPT na stworzenie kawałek po kawałku kodu sphagetti, więc nie chcę zrazić kogoś do projektu, tylko ze względu na mniejsze doświadczenie.
 
-**Aktualny build developerski: r10 (testowy, 02.10.2026).** Obejmuje poprawki instalatora i montowania dysku po restarcie, obsługę transferów w dashboardzie, opcjonalne imię użytkownika oraz widoczny komunikat o wersji testowej. To nie jest jeszcze publiczne wydanie 0.1.
+**Aktualny build developerski: r10 (testowy, 02.10.2026).** Obejmuje poprawki instalatora i montowania dysku po restarcie, obsługę transferów w dashboardzie.
 
 **Jeśli chcesz dołączyć i przetestować projekt, skontaktuj się ze mną.**
 
