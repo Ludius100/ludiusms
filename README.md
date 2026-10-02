@@ -23,6 +23,10 @@ Chcę rozwinąć ten eksperyment w prostą platformę, dzięki której inni też
 - 🧩 **Prosta obsługa** — docelowo minimum grzebania w terminalu
 - ❤️ **Projekt dla frajdy i społeczności**
 
+## 🛠️ Instalacja (build testowy)
+
+Instrukcja przygotowania serwera, zbudowania paczki oraz uruchomienia kreatora znajduje się w **[INSTALL.md](INSTALL.md)**. Przed instalacją przeczytaj ostrzeżenia dotyczące formatowania dysku danych i zachowaj kopię potrzebnych plików. Obecny build jest przeznaczony do testów, a nie do wdrożeń produkcyjnych.
+
 ## 🚧 Aktualny stan
 
 Bardzo wczesny etap. Serwer powstał najpierw na własne potrzeby — teraz porządkuję kod i architekturę, usuwam rozwiązania „na szybko" i przygotowuję projekt pod bezpieczną instalację na czystej instancji Oracle Cloud.

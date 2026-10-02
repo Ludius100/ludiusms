@@ -88,8 +88,11 @@ def _copy_homepage(source, destination):
         encoding="utf-8",
     )
     shutil.copy2(source_css, destination / "custom.css")
+    assets = source / "assets"
+    if not assets.is_dir():
+        assets = source.parent / "assets"
     for name in ("lms-logo.webp", "lms-hero.webp"):
-        _copy_file(source.parent / "assets" / name, destination / "assets" / name)
+        _copy_file(assets / name, destination / "assets" / name)
 
 
 def _write_root_installer(root):
