@@ -1,5 +1,3 @@
-[Reading 60 lines from start (total: 60 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 from pathlib import Path
 
@@ -60,5 +58,3 @@ def collect_managed_credentials(plan, install_root):
         }
 
     return result
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

@@ -1,5 +1,3 @@
-[Reading 163 lines from start (total: 163 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import argparse
 import re
@@ -50,6 +48,41 @@ def _replace_static_service_info(text):
     return text[:start] + replacement + text[end:]
 
 
+def _prepare_new_dashboard_urls(text):
+    # Keep the live dashboard untouched; sanitize only the portable copy.
+    marker = "  const URLS = {\n"
+    start = text.find(marker)
+    if start < 0:
+        return text
+    end = text.find("\n  };", start)
+    if end < 0:
+        raise FrontendPrepareError("Niekompletny blok URLS dashboardu.")
+    replacement = """  const URLS = {
+    jellyfin: `${window.location.protocol}//${window.location.hostname}:8096`,
+    gdrive: "",
+    kuma: "",
+    ntfy: ""
+  };"""
+    text = text[:start] + replacement + text[end + len("\n  };"):]
+    for service_id in ("gdrive", "kuma", "ntfy"):
+        text = re.sub(
+            rf'(?m)^    \["{service_id}",[^\n]*\n', "", text
+        )
+        text = re.sub(
+            rf'(?m)^        settingsLink\(URLS\.{service_id},[^\n]*\n',
+            "", text,
+        )
+    text = re.sub(
+        r'(?m)^        settingsCard\("wallpaper",[^\n]*\n',
+        "", text,
+    )
+    text = text.replace(
+        '    document.querySelector("#lms1-bell").addEventListener("click", () => window.open(URLS.ntfy, "_blank", "noopener"));',
+        '    document.querySelector("#lms1-bell")?.remove();',
+    )
+    return text
+
+
 def prepare_custom_js(source):
     text = source
 
@@ -60,8 +93,14 @@ def prepare_custom_js(source):
         text,
         count=1,
     )
-    text = _replace_services_block(text)
+    portable_services_marker = (
+        "    const serviceUrl = (port) =>\n"
+        "        `${window.location.protocol}//${window.location.hostname}:${port}`;"
+    )
+    if portable_services_marker not in text:
+        text = _replace_services_block(text)
     text = _replace_static_service_info(text)
+    text = _prepare_new_dashboard_urls(text)
 
     for service_id in ("gdrive", "kuma", "ntfy"):
         text = text.replace(
@@ -83,13 +122,15 @@ def prepare_custom_js(source):
     )
 
     marker = "    function renderStatus(status) {\n        let onlineCount = 0;"
-    if marker not in text:
-        raise FrontendPrepareError("Nie znaleziono renderStatus().")
-    text = text.replace(
-        marker,
-        marker + "\n        const totalServices = Object.keys(SERVICES).length;",
-        1,
-    )
+    total_services_line = "        const totalServices = Object.keys(SERVICES).length;"
+    if total_services_line not in text:
+        if marker not in text:
+            raise FrontendPrepareError("Nie znaleziono renderStatus().")
+        text = text.replace(
+            marker,
+            marker + "\n" + total_services_line,
+            1,
+        )
     text = text.replace(
         "`${onlineCount} / 4 online`",
         "`${onlineCount} / ${totalServices} online`",
@@ -103,13 +144,15 @@ def prepare_custom_js(source):
     )
 
     apply_marker = "    function applyWallpaper() {\n"
-    if apply_marker not in text:
-        raise FrontendPrepareError("Nie znaleziono applyWallpaper().")
-    text = text.replace(
-        apply_marker,
-        apply_marker + "        if (!WALLPAPER_API) return;\n",
-        1,
-    )
+    apply_guard = apply_marker + "        if (!WALLPAPER_API) return;\n"
+    if apply_guard not in text:
+        if apply_marker not in text:
+            raise FrontendPrepareError("Nie znaleziono applyWallpaper().")
+        text = text.replace(
+            apply_marker,
+            apply_guard,
+            1,
+        )
 
     actions_marker = """        const wallpaperInput =
             document.getElementById(
@@ -118,11 +161,18 @@ def prepare_custom_js(source):
 
 
         refreshButton.addEventListener("""
-    if actions_marker not in text:
-        raise FrontendPrepareError("Nie znaleziono setupActions().")
-    text = text.replace(
-        actions_marker,
-        """        const wallpaperInput =
+    actions_guard = """        if (!WALLPAPER_API) {
+            wallpaperButton?.remove();
+            wallpaperInput?.remove();
+            refreshButton.addEventListener("click", loadData);
+            return;
+        }"""
+    if actions_guard not in text:
+        if actions_marker not in text:
+            raise FrontendPrepareError("Nie znaleziono setupActions().")
+        text = text.replace(
+            actions_marker,
+            """        const wallpaperInput =
             document.getElementById(
                 "wallpaper-input"
             );
@@ -136,8 +186,8 @@ def prepare_custom_js(source):
 
 
         refreshButton.addEventListener(""",
-        1,
-    )
+            1,
+        )
 
     return text
 
@@ -163,5 +213,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

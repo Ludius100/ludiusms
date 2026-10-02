@@ -1,5 +1,3 @@
-[Reading 117 lines from start (total: 117 lines, 0 remaining)]
-
 import sys
 import unittest
 from pathlib import Path
@@ -8,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from planner import build_plan
-from renderer import render_bundle
+from renderer import render_bundle, render_storage_guard
 
 
 def fresh_host():
@@ -77,13 +75,41 @@ class RendererTests(unittest.TestCase):
 
     def test_gateway_proxies_api(self):
         caddy = self.bundle["gateway/Caddyfile"]
-        self.assertIn("handle /api/*", caddy)
+        self.assertIn("handle @lms_api", caddy)
+        self.assertIn("/api/jellyfin /api/jellyfin/*", caddy)
         self.assertIn("reverse_proxy lms-api:8090", caddy)
+        self.assertIn("reverse_proxy lms-homepage:3000", caddy)
+        self.assertNotIn("handle /api/*", caddy)
     def test_no_current_server_identifiers_leak(self):
         all_text = "\n".join(self.bundle.values())
         self.assertNotIn("100.127.67.28", all_text)
         self.assertNotIn("nas-server", all_text)
         self.assertNotIn("ocid1.", all_text)
+
+    def test_qbittorrent_ports_follow_selected_bind(self):
+        compose = self.bundle["compose.yaml"]
+        self.assertIn('${LMS_BIND_ADDRESS}:8080:8080/tcp', compose)
+        self.assertIn('${LMS_BIND_ADDRESS}:6881:6881/tcp', compose)
+        self.assertIn('${LMS_BIND_ADDRESS}:6881:6881/udp', compose)
+        self.assertNotIn('      - "6881:6881/tcp"', compose)
+
+    def test_nas_containers_do_not_autostart_before_disk_mount(self):
+        compose = self.bundle["compose.yaml"]
+        for service in ("dashboard-api", "jellyfin", "qbittorrent"):
+            section = compose.split("  " + service + ":", 1)[1].split("\n\n", 1)[0]
+            self.assertIn("restart: on-failure:5", section)
+            self.assertNotIn("restart: unless-stopped", section)
+        # Brama i Homepage nie montują NAS, więc mogą wystartować normalnie.
+        self.assertIn("restart: unless-stopped", compose)
+
+    def test_reboot_guard_waits_for_mount_and_recreates_managed_containers(self):
+        unit = render_storage_guard(self.plan)
+        self.assertIn("RequiresMountsFor=/srv/lms-media", unit)
+        self.assertIn("ConditionPathIsMountPoint=/srv/lms-media", unit)
+        self.assertIn("ExecStartPre=/usr/bin/findmnt --mountpoint /srv/lms-media", unit)
+        self.assertIn("--force-recreate dashboard-api jellyfin qbittorrent", unit)
+        self.assertNotIn("down", unit)
+        self.assertNotIn("--volumes", unit)
 
     def test_existing_services_are_not_redeployed(self):
         host = fresh_host()
@@ -117,5 +143,3 @@ class RendererTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

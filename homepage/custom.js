@@ -1,31 +1,16 @@
 (() => {
-    const API = "http://100.127.67.28:8090";
-    const WALLPAPER_API = "http://100.127.67.28:8088";
+    const API = "";
+    const WALLPAPER_API = null;
+
+    const serviceUrl = (port) =>
+        `${window.location.protocol}//${window.location.hostname}:${port}`;
 
     const SERVICES = {
         jellyfin: {
             name: "Jellyfin",
             description: "Filmy • Seriale • Anime",
-            url: "http://100.127.67.28:8096",
+            url: serviceUrl(8096),
             icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png"
-        },
-        gdrive: {
-            name: "GDrive → NAS",
-            description: "Transfer plików",
-            url: "http://100.127.67.28:8088",
-            icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/google-drive.png"
-        },
-        kuma: {
-            name: "Uptime Kuma",
-            description: "Monitoring usług",
-            url: "http://100.127.67.28:3001",
-            icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png"
-        },
-        ntfy: {
-            name: "ntfy",
-            description: "Powiadomienia",
-            url: "http://100.127.67.28:8089",
-            icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/ntfy.png"
         }
     };
 
@@ -103,7 +88,7 @@
                                 <span id="nas-greeting">
                                     Witaj
                                 </span>,
-                                <strong>Remigiusz</strong>
+                                <strong>LMS</strong>
                             </div>
 
                             <div class="nas-global-status">
@@ -179,9 +164,6 @@
 
                         <div class="nas-services-grid">
                             ${serviceCard("jellyfin")}
-                            ${serviceCard("gdrive")}
-                            ${serviceCard("kuma")}
-                            ${serviceCard("ntfy")}
                         </div>
 
                     </section>
@@ -380,7 +362,7 @@
                 <footer class="nas-footer">
 
                     <span>
-                        NAS • Oracle Cloud
+                        LMS Server
                     </span>
 
                     <span id="footer-system">
@@ -612,6 +594,7 @@
 
     function renderStatus(status) {
         let onlineCount = 0;
+        const totalServices = Object.keys(SERVICES).length;
 
         Object.entries(SERVICES)
             .forEach(([id]) => {
@@ -699,11 +682,11 @@
         document.getElementById(
             "services-summary"
         ).textContent =
-            `${onlineCount} / 4 online`;
+            `${onlineCount} / ${totalServices} online`;
 
 
         const everythingOnline =
-            onlineCount === 4;
+            onlineCount === totalServices;
 
 
         document.getElementById(
@@ -711,7 +694,7 @@
         ).textContent =
             everythingOnline
                 ? "Wszystkie systemy działają"
-                : `${onlineCount} z 4 usług online`;
+                : `${onlineCount} z ${totalServices} usług online`;
 
 
         const globalDot =
@@ -732,22 +715,7 @@
 
 
     function renderStaticServiceInfo() {
-        document.getElementById(
-            "info-gdrive"
-        ).innerHTML =
-            `<span>Google Drive</span><span>→ NAS</span>`;
-
-
-        document.getElementById(
-            "info-kuma"
-        ).innerHTML =
-            `<span><strong>4</strong> monitory</span>`;
-
-
-        document.getElementById(
-            "info-ntfy"
-        ).innerHTML =
-            `<span>Alerty NAS</span>`;
+        // Optional personal services are intentionally omitted in distribution builds.
     }
 
 
@@ -824,6 +792,7 @@
 
 
     function applyWallpaper() {
+        if (!WALLPAPER_API) return;
         const background =
             document.querySelector(
                 ".nas-background"
@@ -855,6 +824,13 @@
             document.getElementById(
                 "wallpaper-input"
             );
+
+        if (!WALLPAPER_API) {
+            wallpaperButton?.remove();
+            wallpaperInput?.remove();
+            refreshButton.addEventListener("click", loadData);
+            return;
+        }
 
 
         refreshButton.addEventListener(
@@ -989,7 +965,7 @@
    ============================================================ */
 
 (() => {
-    const QBT_API = "http://100.127.67.28:8090";
+    const QBT_API = "";
 
     let pendingMagnet = "";
     let qbtTimer = null;
@@ -1945,7 +1921,7 @@
    ============================================================ */
 
 (() => {
-    const API = "http://100.127.67.28:8090";
+    const API = "";
 
     let preparedTorrent = null;
 
@@ -2377,7 +2353,7 @@
    ============================================================ */
 
 (() => {
-    const API = "http://100.127.67.28:8090";
+    const API = "";
     let activityTimer = null;
     let qbtMirrorTimer = null;
 
@@ -2637,6 +2613,7 @@
                 return `<div class="nas-card-transfer"><div class="nas-card-transfer-line"><strong>${esc(t.name||"Torrent")}</strong><b>${pct.toFixed(1)}%</b></div><div class="nas-card-transfer-bar"><i style="width:${pct}%"></i></div><small>↓ ${formatBytesV2(t.downloadSpeed||0)}/s • ${formatBytesV2(t.downloaded||0)} / ${formatBytesV2(t.size||0)}</small></div>`;
             }).join("");
             box.classList.toggle("visible", torrents.length>0);
+            window.dispatchEvent(new CustomEvent("nas:qbt-progress", {detail:data.torrents||[]}));
         } catch (error) {
             console.error("qBittorrent transfer mirror error:", error);
             box.classList.remove("visible");
@@ -2675,10 +2652,11 @@
    Inline workspace + searchable NAS titles + background queue.
    ============================================================ */
 (() => {
-    const API = "http://100.127.67.28:8090";
+    const API = "";
     const CHUNK_SIZE = 8 * 1024 * 1024;
 
-    const wizard = { type: null, files: [], plan: null, setup: null };
+    const wizard = { type: null, files: [], plan: null, setup: null,
+        identification: null, skipIdentify: false, seriesYear: null };
     const transfer = { jobs: [], active: null, running: false, completed: [] };
 
     const esc = v => String(v ?? "")
@@ -2743,6 +2721,7 @@
     function openWizard(type) {
         wizard.type = type === "movie" ? "movie" : "series";
         wizard.files = []; wizard.plan = null; wizard.setup = null;
+        wizard.identification = null; wizard.skipIdentify = false; wizard.seriesYear = null;
         renderSetup();
     }
 
@@ -2795,14 +2774,17 @@
 
         const lib=el.querySelector("#nas-v4-library");
         const title=el.querySelector("#nas-v4-title");
-        lib.onchange=()=>{ loadTitles(true); refreshEpisodeHint(true); };
+        lib.onchange=()=>{ wizard.identification=null;wizard.skipIdentify=false;wizard.seriesYear=null;loadTitles(true); refreshEpisodeHint(true); };
         title.onfocus=()=>loadTitles(false);
-        title.oninput=()=>{ renderTitleChoices(); refreshEpisodeHint(false); };
+        title.oninput=()=>{ wizard.identification=null;wizard.skipIdentify=false;wizard.seriesYear=null;renderTitleChoices(); refreshEpisodeHint(false); };
         const seasonInput=el.querySelector("#nas-v4-season");
         if(seasonInput) seasonInput.onchange=()=>refreshEpisodeHint(true);
         document.addEventListener("click", closeComboOutside, {once:true});
 
         if(saved) {
+            wizard.identification=saved.tmdbId?{tmdbId:String(saved.tmdbId),title:saved.title,year:saved.year||null}:null;
+            wizard.skipIdentify=!saved.tmdbId;
+            wizard.seriesYear=saved.year||null;
             title.value=saved.title||"";
             lib.value=saved.library||lib.value;
             if(movie) el.querySelector("#nas-v4-year").value=saved.year||"";
@@ -2843,16 +2825,67 @@
         menu.querySelectorAll("[data-title]").forEach(b=>b.onclick=()=>{
             input.value=b.dataset.title;
             menu.classList.remove("open");
+            wizard.identification=null;
+            wizard.skipIdentify=!b.classList.contains("create");
+            wizard.seriesYear=null;
             updateTitleState();
             refreshEpisodeHint(true);
+            if(b.classList.contains("create")) openIdentification();
         });
         updateTitleState();
     }
+    async function openIdentification() {
+        const title=ensureWorkspace().querySelector("#nas-v4-title")?.value.trim();
+        if(!title)return;
+        document.querySelector("#nas-tmdb-overlay")?.remove();
+        const overlay=document.createElement("div");
+        overlay.id="nas-tmdb-overlay";
+        overlay.className="nas-tmdb-overlay";
+        overlay.innerHTML=`<div class="nas-tmdb-dialog" role="dialog" aria-modal="true" aria-labelledby="nas-tmdb-heading">
+            <div class="nas-tmdb-head"><div><span class="nas-eyebrow">IDENTYFIKACJA MEDIÓW</span>
+            <h3 id="nas-tmdb-heading">Wybierz właściwy tytuł</h3><p>${esc(title)} • ${wizard.type==="movie"?"Film":"Serial"}</p></div>
+            <button type="button" class="nas-tmdb-close" aria-label="Zamknij">×</button></div>
+            <div class="nas-tmdb-results" aria-live="polite"><p>Wyszukuję w metadanych Jellyfin/TMDB…</p></div>
+            <div class="nas-tmdb-actions"><button type="button" class="nas-tmdb-skip">Pomiń identyfikację</button></div>
+        </div>`;
+        document.body.appendChild(overlay);
+        const close=()=>overlay.remove();
+        overlay.querySelector(".nas-tmdb-close").onclick=close;
+        overlay.onclick=e=>{if(e.target===overlay)close();};
+        overlay.querySelector(".nas-tmdb-skip").onclick=()=>{
+            wizard.identification=null;wizard.skipIdentify=true;wizard.seriesYear=null;
+            updateTitleState();close();
+        };
+        const results=overlay.querySelector(".nas-tmdb-results");
+        try {
+            const response=await apiJson(`${API}/api/media/identify?type=${encodeURIComponent(wizard.type)}&title=${encodeURIComponent(title)}`,{cache:"no-store"});
+            if(!overlay.isConnected)return;
+            const matches=Array.isArray(response.results)?response.results:[];
+            if(!matches.length){results.innerHTML="<p>Nie znaleziono tytułu z ID TMDB. Możesz zmienić nazwę lub pominąć identyfikację.</p>";return;}
+            results.innerHTML=matches.map((item,i)=>`<button type="button" class="nas-tmdb-result" data-result="${i}">
+                ${item.poster?`<img src="${esc(item.poster)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:'<span class="nas-tmdb-no-poster">▤</span>'}
+                <span><strong>${esc(item.title)}</strong><small>${esc(item.year||"Rok nieznany")} • ${item.type==="movie"?"Film":"Serial"} • TMDB ${esc(item.tmdbId)}</small></span>
+                <b>Wybierz →</b></button>`).join("");
+            results.querySelectorAll("[data-result]").forEach(button=>button.onclick=()=>{
+                const item=matches[Number(button.dataset.result)];
+                wizard.identification=item;wizard.skipIdentify=false;wizard.seriesYear=item.year||null;
+                const workspace=ensureWorkspace(), input=workspace.querySelector("#nas-v4-title");
+                input.value=item.title;
+                if(wizard.type==="movie"&&item.year)workspace.querySelector("#nas-v4-year").value=item.year;
+                workspace.querySelector("#nas-v4-title-menu")?.classList.remove("open");
+                updateTitleState();refreshEpisodeHint(true);close();
+            });
+        } catch(error) {
+            if(overlay.isConnected)results.innerHTML=`<p class="nas-tmdb-error">${esc(error.message)}. Możesz pominąć identyfikację.</p>`;
+        }
+    }
+
     function updateTitleState() {
         const el=ensureWorkspace(), input=el.querySelector("#nas-v4-title"), state=el.querySelector("#nas-v4-title-state");
         if(!input||!state)return;
         const exact=titlesCache.some(x=>x.toLocaleLowerCase("pl")===input.value.trim().toLocaleLowerCase("pl"));
-        state.textContent=input.value.trim()?(exact?"✓ Istniejący folder na NAS":"＋ Zostanie utworzony nowy folder"):"Wpisz nazwę lub wybierz istniejący folder z NAS.";
+        state.textContent=wizard.identification?`✓ TMDB ID: ${wizard.identification.tmdbId} • ${wizard.identification.title}`:
+            input.value.trim()?(exact?"✓ Istniejący folder na NAS":"＋ Zostanie utworzony nowy folder"):"Wpisz nazwę lub wybierz istniejący folder z NAS.";
         state.className=exact?"existing":input.value.trim()?"new":"";
     }
     function closeComboOutside(e) {
@@ -2914,13 +2947,17 @@
         if(!wizard.files.length) throw new Error("Wybierz pliki.");
         const files=wizard.files.map(f=>({name:f.name,size:f.size}));
         const library=el.querySelector("#nas-v4-library").value;
-        if(wizard.type==="movie") return {type:"movie",title,library,year:el.querySelector("#nas-v4-year").value||"",files};
-        return {type:"series",title,library,season:Number(el.querySelector("#nas-v4-season").value||1),firstEpisode:Number(el.querySelector("#nas-v4-first").value||1),files};
+        const tmdbId=wizard.identification?.tmdbId||null;
+        if(wizard.type==="movie") return {type:"movie",title,library,year:el.querySelector("#nas-v4-year").value||"",tmdbId,files};
+        return {type:"series",title,library,year:wizard.seriesYear||"",tmdbId,
+            season:Number(el.querySelector("#nas-v4-season").value||1),firstEpisode:Number(el.querySelector("#nas-v4-first").value||1),files};
     }
     async function requestPlan() {
         const el=ensureWorkspace(), err=el.querySelector("#nas-v4-error"), btn=el.querySelector("#nas-v4-plan");
         err.textContent="";
         try { wizard.setup=setupPayload(); } catch(e){err.textContent=e.message;return;}
+        const exact=titlesCache.some(x=>x.toLocaleLowerCase("pl")===wizard.setup.title.toLocaleLowerCase("pl"));
+        if(!exact&&!wizard.identification&&!wizard.skipIdentify){openIdentification();return;}
         btn.disabled=true;btn.textContent="Analizuję…";
         try {
             wizard.plan=await apiJson(`${API}/api/media/plan`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(wizard.setup)});
@@ -2940,6 +2977,11 @@
         el.innerHTML=`
           ${header(p.mediaType==="movie"?"Film lokalny":"Serial lokalny","Sprawdź plan. Po dodaniu do kolejki możesz od razu wrócić do dashboardu.")}
           ${stepbar(2)}
+          ${wizard.identification?`<div class="nas-tmdb-confirm">
+              ${wizard.identification.poster?`<img src="${esc(wizard.identification.poster)}" alt="" referrerpolicy="no-referrer">`:""}
+              <div><strong>${esc(wizard.identification.title)} (${esc(wizard.identification.year||"—")})</strong>
+              <small>✓ Identyfikacja TMDB: ${esc(wizard.identification.tmdbId)} • folder oznaczony dla Jellyfina</small></div>
+          </div>`:""}
           <div class="nas-v4-card">
             <div class="nas-v4-summary">
               <div><span>Biblioteka</span><strong>${esc(p.libraryName)}</strong></div><div><span>Pliki</span><strong>${jobs.length}</strong></div>
@@ -2963,7 +3005,7 @@
     function browserFileFor(item) { return wizard.files.find(f=>f.name===item.originalName)||null; }
     function folderFor(item) {
         const path=String(item.targetPath||"").replaceAll("\\","/");
-        const marker=`/nas/${wizard.plan.libraryName}/`;
+        const marker=`${String(wizard.plan.libraryRoot||"").replaceAll("\\","/").replace(/\/$/,"")}/`;
         if(!path.startsWith(marker)) throw new Error(`Nie rozpoznaję ścieżki: ${path}`);
         const parts=path.slice(marker.length).split("/");parts.pop();return parts.join("/");
     }
@@ -2984,6 +3026,7 @@
         ensureTransferPanel();
         renderTransferPanel();
         goHome();
+        window.dispatchEvent(new CustomEvent("nas:dashboard-home"));
         runQueue();
     }
 
@@ -2991,32 +3034,97 @@
         return document.querySelector("#nas-media-hub-v2");
     }
     function renderTransferPanel() {
-        const all=[...(transfer.active?[transfer.active]:[]),...transfer.jobs.filter(x=>x.status==="queued")];
+        const all=[...(transfer.active?[transfer.active]:[]),...transfer.jobs.filter(x=>["queued","paused"].includes(x.status)),...transfer.completed.slice(-6).reverse()];
         for(const type of ["movie","series"]){
             const box=document.querySelector(type==="movie"?"#nas-movie-transfers":"#nas-series-transfers");
             if(!box)continue;
             const jobs=all.filter(x=>x.mediaType===type);
             box.innerHTML=jobs.map(job=>{
-                const active=job.status==="uploading", pct=job.file.size?Math.min(100,job.sent/job.file.size*100):0;
-                return `<div class="nas-card-transfer"><div class="nas-card-transfer-line"><strong>${active?"↑ ":"◷ "}${esc(job.targetName)}</strong><b>${active?pct.toFixed(0)+"%":"kolejka"}</b></div>${active?`<div class="nas-card-transfer-bar"><i style="width:${pct}%"></i></div><small>${fmtBytes(job.sent)} / ${fmtBytes(job.file.size)} • ${fmtSpeed(job.speed)}</small>`:`<small>${fmtBytes(job.file.size)}</small>`}</div>`;
+                const active=job.status==="uploading", done=job.status==="done", failed=job.status==="error";
+                const pct=job.file.size?Math.min(100,job.sent/job.file.size*100):0;
+                const label=active?`${pct.toFixed(0)}%`:done?"Wysłano ✓":failed?"Błąd":"Kolejka";
+                const details=failed?esc(job.error||"Upload nieudany"):
+                    active?`${fmtBytes(job.sent)} / ${fmtBytes(job.file.size)} • ${fmtSpeed(job.speed)} • ETA ${fmtEta(job.eta)}`:
+                    done?`${fmtBytes(job.file.size)} • gotowe`:fmtBytes(job.file.size);
+                return `<div class="nas-card-transfer ${failed?"error":done?"completed":""}"><div class="nas-card-transfer-line"><strong>${active?"↑ ":done?"✓ ":failed?"! ":"◷ "}${esc(job.targetName)}</strong><b>${label}</b></div>${active?`<div class="nas-card-transfer-bar"><i style="width:${pct}%"></i></div>`:""}<small>${details}</small></div>`;
             }).join("");
             box.classList.toggle("visible",jobs.length>0);
         }
+        const manager=document.querySelector("#nas-active-transfer-v2");
+        if(manager){
+            manager.classList.toggle("visible",all.length>0);
+            manager.innerHTML=all.length?`<div class="nas-active-transfer-top"><strong>MENEDŻER TRANSFERÓW</strong><span>${transfer.active?"Wysyłanie":"Ostatnie zadania"} • ${transfer.jobs.filter(j=>j.status==="queued").length} w kolejce</span></div>
+                ${all.slice(0,7).map(job=>{
+                    const active=["uploading","pausing","cancelling"].includes(job.status),done=job.status==="done",bad=job.status==="error",paused=job.status==="paused";
+                    const pct=job.file.size?Math.min(100,100*job.sent/job.file.size):0;
+                    const label=job.status==="pausing"?"Wstrzymuję":job.status==="cancelling"?"Anuluję":active?pct.toFixed(0)+"%":paused?"Pauza":done?"Wysłano":job.status==="cancelled"?"Anulowano":bad?"Błąd":"W kolejce";
+                    const actions=["uploading","queued","paused"].includes(job.status)?`<div class="lms-transfer-actions"><button type="button" data-lms-upload="${paused?"resume":"pause"}" data-job="${job.id}">${paused?"▶ Wznów":"Ⅱ Pauza"}</button><button type="button" class="stop" data-lms-upload="cancel" data-job="${job.id}">■ Zatrzymaj</button></div>`:"";
+                    return `<div class="nas-transfer-job ${bad?"error":done?"done":""}">
+                        <div><strong>${active?"↑ ":done?"✓ ":bad?"! ":"◷ "}${esc(job.targetName)}</strong><b>${label}</b></div>
+                        ${!done&&!bad&&job.status!=="cancelled"?`<div class="nas-card-transfer-bar"><i style="width:${pct}%"></i></div>`:""}
+                        <small>${bad?esc(job.error||"Błąd wysyłania"):done||job.status==="cancelled"?fmtBytes(job.sent):`${fmtBytes(job.sent)} / ${fmtBytes(job.file.size)}${active?` • ${fmtSpeed(job.speed)} • ETA ${fmtEta(job.eta)}`:""}`}</small>${actions}
+                    </div>`;
+                }).join("")}`:"";
+        }
+        // Nowy dashboard 1:1 ma własną historię; pokazuj w niej też żywe transfery.
+        const activityCard=document.querySelector(".lms1-activity-card");
+        const activityList=document.querySelector("#lms1-home-activity");
+        if(activityCard&&activityList){
+            let live=document.querySelector("#lms1-live-transfers");
+            if(!live){
+                live=document.createElement("div");
+                live.id="lms1-live-transfers";
+                activityCard.insertBefore(live,activityList);
+            }
+            live.innerHTML=manager?.innerHTML||"";
+            live.hidden=!all.length;
+            activityCard.classList.toggle("has-live-transfers",all.length>0);
+            const hasHistory=!!activityList.querySelector(".lms1-activity-row");
+            const qbtVisible=!!document.querySelector("#lms1-qbt-transfers:not([hidden])");
+            activityList.hidden=(all.length>0||qbtVisible)&&!hasHistory;
+        }
     }
 
-    async function sendChunk(job, blob, offset) {
-        const r=await fetch(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}/chunk`,{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Upload-Offset":String(offset)},body:blob});
-        const d=await r.json().catch(()=>({}));
-        if(!r.ok||d.ok===false)throw new Error(d.error||`HTTP ${r.status}`);
-        return d;
+    function sendChunk(job, blob, offset) {
+        return new Promise((resolve,reject)=>{
+            const xhr=new XMLHttpRequest();
+            xhr.open("POST",`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}/chunk`);
+            xhr.setRequestHeader("Content-Type","application/octet-stream");
+            xhr.setRequestHeader("X-Upload-Offset",String(offset));
+            xhr.timeout=120000;
+            const start=performance.now(), baseline=offset;
+            xhr.upload.onprogress=e=>{
+                if(!e.lengthComputable)return;
+                job.sent=Math.min(job.file.size,baseline+e.loaded);
+                const seconds=(performance.now()-start)/1000;
+                if(seconds>0.25)job.speed=e.loaded/seconds;
+                job.eta=job.speed>0?(job.file.size-job.sent)/job.speed:null;
+                renderTransferPanel();
+            };
+            xhr.onload=()=>{
+                let data={};try{data=JSON.parse(xhr.responseText||"{}");}catch{}
+                if(xhr.status<200||xhr.status>=300||data.ok===false){reject(new Error(data.error||`HTTP ${xhr.status}`));return;}
+                resolve(data);
+            };
+            xhr.onerror=()=>reject(new Error("Utracono połączenie podczas uploadu"));
+            xhr.ontimeout=()=>reject(new Error("Przekroczono czas wysyłania fragmentu"));
+            xhr.send(blob);
+        });
     }
     async function uploadJob(job) {
-        const init=await apiJson(`${API}/api/media/upload/init`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-            library:job.library,folder:job.folder,originalName:job.file.name,targetName:job.targetName,size:job.file.size
-        })});
+        const init=job.uploadId?
+            await apiJson(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}`,{cache:"no-store"}):
+            await apiJson(`${API}/api/media/upload/init`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+                library:job.library,folder:job.folder,originalName:job.file.name,targetName:job.targetName,size:job.file.size
+            })});
         job.uploadId=init.uploadId;
         let offset=Number(init.received||0), lastT=performance.now(), lastB=offset;
+        job.sent=offset;
+        if(job.status==="pausing"){job.status="paused";renderTransferPanel();return;}
+        if(job.status==="cancelling")return;
         while(offset<job.file.size) {
+            if(job.status==="pausing"){job.status="paused";renderTransferPanel();return;}
+            if(job.status==="cancelling")return;
             const end=Math.min(offset+CHUNK_SIZE,job.file.size), blob=job.file.slice(offset,end);
             let ok=false, error;
             for(let attempt=0;attempt<3&&!ok;attempt++){
@@ -3038,6 +3146,9 @@
             if(dt>=0.35){job.speed=Math.max(0,(offset-lastB)/dt);lastT=now;lastB=offset;}
             job.sent=offset;job.eta=job.speed>0?(job.file.size-offset)/job.speed:null;renderTransferPanel();
         }
+        if(job.status==="pausing"){job.status="paused";renderTransferPanel();return;}
+        if(job.status==="cancelling")return;
+        job.status="finalizing";renderTransferPanel();
         await apiJson(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}/finalize`,{method:"POST"});
         job.sent=job.file.size;job.status="done";
     }
@@ -3051,15 +3162,46 @@
                 transfer.active=job;job.status="uploading";renderTransferPanel();
                 try { await uploadJob(job); }
                 catch(e) {
-                    job.status="error";job.error=e.message;
-                    if(job.uploadId) fetch(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}`,{method:"DELETE"}).catch(()=>{});
+                    if(job.status!=="cancelling"){job.status="error";job.error=e.message;}
                 }
-                transfer.completed.push(job);
-                transfer.jobs=transfer.jobs.filter(x=>x!==job);
+                if(job.status==="cancelling")job.status="cancelled";
+                if(job.status==="cancelled"||job.status==="error"){
+                    if(job.uploadId)await fetch(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}`,{method:"DELETE"}).catch(()=>{});
+                }
+                if(job.status!=="paused"){
+                    transfer.completed.push(job);
+                    if(transfer.completed.length>6)transfer.completed.shift();
+                    transfer.jobs=transfer.jobs.filter(x=>x!==job);
+                }
                 transfer.active=null;renderTransferPanel();
             }
         } finally { transfer.running=false;transfer.active=null;renderTransferPanel(); }
     }
+
+    document.addEventListener("click",event=>{
+        const button=event.target.closest?.("#lms1-live-transfers [data-lms-upload]");
+        if(!button)return;
+        const job=transfer.jobs.find(x=>x.id===button.dataset.job);
+        if(!job)return;
+        const action=button.dataset.lmsUpload;
+        if(action==="cancel"){
+            if(!window.confirm("Anulować upload? Wysłane fragmenty tymczasowe zostaną usunięte."))return;
+            if(job.status==="queued"||job.status==="paused"){
+                job.status="cancelled";
+                transfer.jobs=transfer.jobs.filter(x=>x!==job);
+                transfer.completed.push(job);
+                if(transfer.completed.length>6)transfer.completed.shift();
+                if(job.uploadId)fetch(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}`,{method:"DELETE"}).catch(()=>{});
+            }else if(["uploading","pausing"].includes(job.status))job.status="cancelling";
+        }else if(action==="pause"){
+            if(job.status==="uploading")job.status="pausing";
+            else if(job.status==="queued")job.status="paused";
+        }else if(action==="resume"&&job.status==="paused"){
+            job.status="queued";
+            runQueue();
+        }
+        renderTransferPanel();
+    });
 
     window.addEventListener("nas:local-media",e=>openWizard(e.detail?.type==="movie"?"movie":"series"));
     const boot=setInterval(()=>{if(document.querySelector("#nas-media-hub-v2")){clearInterval(boot);ensureWorkspace();ensureTransferPanel();}},250);
@@ -3071,7 +3213,7 @@
    AURORA TORRENT V5 — Magnet + .torrent
    ============================================================ */
 (() => {
-  const API="http://100.127.67.28:8090";
+  const API="";
   const state={kind:"magnet",magnet:"",file:null,library:"downloads",meta:null,libraries:[]};
   const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
   const fmt=n=>{n=Number(n||0);if(!n)return"0 B";const u=["B","KB","MB","GB","TB"],i=Math.min(4,Math.floor(Math.log(n)/Math.log(1024)));return`${(n/1024**i).toFixed(i<2?0:1)} ${u[i]}`};
@@ -3132,7 +3274,7 @@
     const e=ws(),err=e.querySelector("#tv5-error"),b=e.querySelector("#tv5-start"),sel=[...e.querySelectorAll("[data-tv5-file]:checked")].map(x=>Number(x.dataset.tv5File));
     if(!sel.length){err.textContent="Wybierz przynajmniej jeden plik.";return}
     b.disabled=true;b.textContent="Uruchamiam…";
-    try{await req(`${API}/api/qbittorrent/start`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({hash:state.meta.hash,selected:sel})});window.dispatchEvent(new CustomEvent("nas:qbt-started"));close()}
+    try{await req(`${API}/api/qbittorrent/start`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({hash:state.meta.hash,selected:sel})});window.dispatchEvent(new CustomEvent("nas:qbt-started"));close();window.dispatchEvent(new CustomEvent("nas:dashboard-home"))}
     catch(x){err.textContent=x.message;b.disabled=false;b.textContent="Rozpocznij pobieranie →"}
   }
 
@@ -3142,4 +3284,649 @@
     const card=e.target.closest?.("button,[role=button],.nas-quick-card,.nas-media-card");
     if(card&&candidates.includes(card)&&/torrent/i.test(card.textContent||"")){e.preventDefault();e.stopImmediatePropagation();open()}
   },true);
+})();
+/* LUDIUS MS 1TO1 DASHBOARD — 2026-09-30 */
+(() => {
+  "use strict";
+
+  const API = "";
+  const URLS = {
+    jellyfin: `${window.location.protocol}//${window.location.hostname}:8096`,
+    gdrive: "",
+    kuma: "",
+    ntfy: ""
+  };
+
+  const state = {
+    page: "dashboard",
+    system: null,
+    uptimeSampleMs: null,
+    status: null,
+    jellyfin: null,
+    qbt: null,
+    activity: [],
+    recent: [],
+    history: { cpu: [], ram: [], disk: [], net: [] }
+  };
+
+  const serviceMeta = [
+    ["jellyfin", "Jellyfin", "play", URLS.jellyfin],
+    ["qbittorrent", "qBittorrent", "download", null]
+  ];
+
+  const pageCopy = {
+    dashboard: ["Dashboard", ""],
+    media: ["Media", "Dodawaj filmy, seriale i torrenty"],
+    downloads: ["Pobieranie", "Aktywne transfery i kolejka"],
+    server: ["Serwer", "Zasoby i usługi Ludius MS"],
+    activity: ["Aktywność", "Ostatnie zdarzenia w bibliotece"],
+    settings: ["Ustawienia", "Dashboard i skróty administracyjne"]
+  };
+
+  function esc(value) {
+    return String(value == null ? "" : value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function icon(name) {
+    const map = {
+      home: '<svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5v8.5H14.5v-6h-5v6H3z"/></svg>',
+      media: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg>',
+      download: '<svg viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg>',
+      library: '<svg viewBox="0 0 24 24"><path d="M3.5 6h6l1.5 2H21v10.5a1.5 1.5 0 0 1-1.5 1.5H4.5A1.5 1.5 0 0 1 3 18.5V7.5A1.5 1.5 0 0 1 4.5 6z"/></svg>',
+      server: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="6" rx="1.5"/><rect x="3.5" y="14" width="17" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></svg>',
+      pulse: '<svg viewBox="0 0 24 24"><path d="M2.5 12h4l2-6 4 12 2-6h7"/></svg>',
+      settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.3 13.5a7.7 7.7 0 0 0 0-3l2-1.5-2-3.5-2.5 1a8 8 0 0 0-2.6-1.5L13.8 2h-4l-.4 3a8 8 0 0 0-2.6 1.5l-2.5-1-2 3.5 2 1.5a7.7 7.7 0 0 0 0 3l-2 1.5 2 3.5 2.5-1A8 8 0 0 0 9.4 19l.4 3h4l.4-3a8 8 0 0 0 2.6-1.5l2.5 1 2-3.5z"/></svg>',
+      bell: '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>',
+      moon: '<svg viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5z"/></svg>',
+      search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>',
+      cpu: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 9h6v6H9M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/></svg>',
+      ram: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 10v4m4-4v4m4-4v4m4-4v4M6 17v2m12-2v2"/></svg>',
+      disk: '<svg viewBox="0 0 24 24"><path d="M6 4h12l3 14H3z"/><circle cx="12" cy="14" r="2"/><path d="M8 8h8"/></svg>',
+      network: '<svg viewBox="0 0 24 24"><path d="M12 3v18M6 8l6-5 6 5M6 16l6 5 6-5M4 12h16"/></svg>',
+      clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+      folder: '<svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></svg>',
+      terminal: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></svg>',
+      external: '<svg viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg>',
+      refresh: '<svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M18 9a7 7 0 0 0-12-2L4 9m2 6a7 7 0 0 0 12 2l2-2"/></svg>'
+    };
+    return map[name] || "";
+  }
+
+  function formatBytes(bytes) {
+    let n = Number(bytes || 0);
+    if (!Number.isFinite(n) || n <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+    return (n / Math.pow(1024, i)).toFixed(i < 2 ? 0 : 1) + " " + units[i];
+  }
+
+  function formatSpeed(bytes) {
+    return formatBytes(bytes) + "/s";
+  }
+
+  function formatUptime(seconds) {
+    const n = Math.max(0, Math.floor(Number(seconds) || 0));
+    const days = Math.floor(n / 86400);
+    const hours = String(Math.floor((n % 86400) / 3600)).padStart(2,"0");
+    const minutes = String(Math.floor((n % 3600) / 60)).padStart(2,"0");
+    const secs = String(n % 60).padStart(2,"0");
+    return (days ? days + " d " : "") + `${hours}:${minutes}:${secs}`;
+  }
+
+  function updateUptimeLive() {
+    if (!state.system || state.uptimeSampleMs == null) return;
+    const elapsed = Math.max(0, Math.floor((Date.now() - state.uptimeSampleMs) / 1000));
+    const uptime = formatUptime(Number(state.system.uptimeSeconds || 0) + elapsed);
+    const card = document.querySelector("#lms1-up-value");
+    const sidebar = document.querySelector("#lms1-side-uptime");
+    const server = document.querySelector(".lms1-resource-uptime strong");
+    if (card) card.textContent = uptime;
+    if (sidebar) sidebar.textContent = "uptime " + uptime;
+    if (server) server.textContent = uptime;
+  }
+
+  function bootDate(seconds) {
+    const d = new Date(Date.now() - Number(seconds || 0) * 1000);
+    return d.toLocaleDateString("pl-PL") + ", " + d.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+  }
+
+  function relativeTime(event) {
+    const raw = event.timestamp || event.createdAt || event.created_at || event.time;
+    if (!raw) return "";
+    let numeric = Number(raw);
+    const value = Number.isFinite(numeric) && numeric < 100000000000 ? numeric * 1000 : raw;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+    if (seconds < 60) return "teraz";
+    if (seconds < 3600) return Math.floor(seconds / 60) + " min temu";
+    if (seconds < 86400) return Math.floor(seconds / 3600) + " godz. temu";
+    return Math.floor(seconds / 86400) + " d temu";
+  }
+
+  async function getJSON(path) {
+    const response = await fetch(API + path, {cache: "no-store"});
+    if (!response.ok) throw new Error(path + ": HTTP " + response.status);
+    return response.json();
+  }
+
+  function navButton(page, label, glyph) {
+    return '<button type="button" data-page="' + page + '">' + icon(glyph) + '<span>' + label + '</span><b></b></button>';
+  }
+
+  function buildApp() {
+    const root = document.querySelector("#nas-dashboard");
+    if (!root || document.querySelector("#lms-1to1-app")) return;
+
+    const app = document.createElement("div");
+    app.id = "lms-1to1-app";
+    app.innerHTML =
+      '<aside class="lms1-sidebar">' +
+        '<div class="lms1-brand">' +
+          '<div class="lms1-logo"><img src="/lms-assets/lms-logo.webp" alt="LMS"></div>' +
+          '<div class="lms1-brand-copy"><strong>LUDIUS <em>MS</em></strong><span>MEDIA SERVER</span></div>' +
+        '</div>' +
+        '<div class="lms1-build-notice" role="note"><strong><i aria-hidden="true"></i> Wersja testowa</strong><small>Projekt w trakcie rozwoju. Niektóre funkcje mogą być niedostępne lub działać nieprawidłowo.</small></div>' +
+        '<nav class="lms1-nav">' +
+          navButton("dashboard","Dashboard","home") +
+          navButton("media","Media","media") +
+          navButton("downloads","Pobieranie","download") +
+          '<button type="button" data-external="jellyfin">' + icon("library") + '<span>Biblioteka</span><b></b></button>' +
+          navButton("server","Serwer","server") +
+          navButton("activity","Aktywność","pulse") +
+          navButton("settings","Ustawienia","settings") +
+        '</nav>' +
+        '<button class="lms1-server-pill" type="button" data-page="server"><i></i><div><strong id="lms1-server-state">Serwer online</strong><small id="lms1-side-uptime">uptime —</small></div><b>›</b></button>' +
+      '</aside>' +
+      '<section class="lms1-stage">' +
+        '<header class="lms1-topbar">' +
+          '<div class="lms1-search">' + icon("search") + '<input id="lms1-search" type="search" placeholder="Szukaj filmów, seriali, anime..." autocomplete="off"><kbd>Ctrl K</kbd></div>' +
+          '<div class="lms1-page-title"><strong id="lms1-page-title">Dashboard</strong><small id="lms1-page-subtitle"></small></div>' +
+          '<div class="lms1-head-actions">' +
+            '<button type="button" id="lms1-bell" title="Powiadomienia">' + icon("bell") + '<i></i></button>' +
+            '<span class="lms1-divider"></span>' +
+            '<button type="button" id="lms1-theme" title="Przygaś interfejs">' + icon("moon") + '</button>' +
+            '<span class="lms1-divider"></span>' +
+            '<span class="lms1-avatar" id="lms1-avatar">L</span>' +
+          '</div>' +
+        '</header>' +
+        '<main class="lms1-main">' +
+          '<section class="lms1-view" data-view="dashboard"></section>' +
+          '<section class="lms1-view" data-view="media"></section>' +
+          '<section class="lms1-view" data-view="downloads"></section>' +
+          '<section class="lms1-view" data-view="server"></section>' +
+          '<section class="lms1-view" data-view="activity"></section>' +
+          '<section class="lms1-view" data-view="settings"></section>' +
+        '</main>' +
+      '</section>';
+
+    root.appendChild(app);
+    buildDashboardView();
+    buildMediaView();
+    buildDownloadsView();
+    buildServerView();
+    buildActivityView();
+    buildSettingsView();
+    wireApp();
+    setPage("dashboard");
+  }
+
+  function buildDashboardView() {
+    const view = document.querySelector('[data-view="dashboard"]');
+    view.innerHTML =
+      '<section class="lms1-hero">' +
+        '<img class="lms1-hero-image" src="/lms-assets/lms-hero.webp" alt="">' +
+        '<div class="lms1-hero-fade"></div>' +
+        '<div class="lms1-hero-copy"><span id="lms1-greeting">Dobry wieczór,</span><h1><span id="lms1-display-name"></span><i id="lms1-name-cursor"></i></h1><p><b></b><span id="lms1-global-status">Sprawdzanie systemu…</span></p></div>' +
+        '<div class="lms1-clock"><small id="lms1-date">—</small><strong id="lms1-time">--:--</strong><blockquote>„Twoja prywatna<br>biblioteka, zawsze<br>pod ręką.”<em>LUDIUS MS</em></blockquote></div>' +
+      '</section>' +
+      '<section class="lms1-metrics">' +
+        metricCard("cpu","CPU","cpu","Oracle Cloud","blue") +
+        metricCard("ram","RAM","ram","Pamięć systemowa","blue") +
+        metricCard("disk","Dysk","disk","NAS","green") +
+        metricCard("net","Sieć","network","↓ 0 B/s  ·  ↑ 0 B/s","purple") +
+        '<article class="lms1-metric uptime"><div class="lms1-metric-head">' + icon("clock") + '<span>Uptime</span></div><strong id="lms1-up-value">—</strong><small id="lms1-up-boot">od —</small></article>' +
+      '</section>' +
+      '<div class="lms1-section-label"><h2>Szybki dostęp</h2></div>' +
+      '<section class="lms1-quick">' +
+        quickCard("jellyfin","Otwórz Jellyfin","Filmy · Seriale · Anime","media","blue","external") +
+        quickCard("library","Biblioteka","Przeglądaj swoją kolekcję","library","violet","external") +
+        quickCard("server","Zarządzaj serwerem","Usługi · Ustawienia","server","green","page") +
+        quickCard("settings","Ustawienia","Konfiguracja Ludius MS","settings","plain","page") +
+      '</section>' +
+      '<section class="lms1-library-grid">' +
+        '<article class="lms1-recent"><div class="lms1-panel-head"><h2>Ostatnio dodane</h2><button type="button" data-external="jellyfin">Zobacz wszystkie →</button></div><div id="lms1-recent-row" class="lms1-recent-row"><div class="lms1-loading">Ładowanie biblioteki…</div></div></article>' +
+        '<article class="lms1-activity-card"><div class="lms1-panel-head"><h2>Ostatnia aktywność</h2><button type="button" data-page="activity">Zobacz wszystkie →</button></div><div id="lms1-home-activity" class="lms1-activity-list"><div class="lms1-loading">Ładowanie…</div></div></article>' +
+      '</section>' +
+      '<section class="lms1-services-strip"><div class="lms1-panel-head"><h2>Usługi online</h2><span id="lms1-service-count">— / 5</span></div><div id="lms1-services-row" class="lms1-services-row"></div></section>';
+  }
+
+  function metricCard(id, title, glyph, subtitle, tone) {
+    return '<article class="lms1-metric ' + tone + '">' +
+      '<div class="lms1-metric-head">' + icon(glyph) + '<span>' + title + '</span></div>' +
+      '<strong id="lms1-' + id + '-value">—</strong>' +
+      '<svg class="lms1-spark" viewBox="0 0 100 32" preserveAspectRatio="none"><polyline id="lms1-' + id + '-spark" points=""></polyline></svg>' +
+      '<small id="lms1-' + id + '-sub">' + subtitle + '</small>' +
+      '<div class="lms1-meter"><i id="lms1-' + id + '-bar"></i></div>' +
+    '</article>';
+  }
+
+  function quickCard(action, title, subtitle, glyph, tone, kind) {
+    const attr = kind === "external" ? 'data-external="jellyfin"' : 'data-page="' + action + '"';
+    return '<button type="button" class="lms1-quick-card ' + tone + '" ' + attr + '><span>' + icon(glyph) + '</span><div><strong>' + title + '</strong><small>' + subtitle + '</small></div><b>›</b></button>';
+  }
+
+  function buildMediaView() {
+    const view = document.querySelector('[data-view="media"]');
+    view.innerHTML =
+      pageIntro("DODAJ MEDIA","Media","Wybierz źródło. Dotychczasowe workflow plików, poczekalni i torrentów pozostaje podpięte.") +
+      '<div class="lms1-media-actions">' +
+        '<button type="button" id="lms1-add-movie"><span>▣</span><div><strong>Film lokalny</strong><small>Dodaj film z komputera</small></div><b>→</b></button>' +
+        '<button type="button" id="lms1-add-series"><span>▤</span><div><strong>Serial lokalny</strong><small>Dodaj odcinki lub cały folder</small></div><b>→</b></button>' +
+        '<button type="button" id="lms1-add-torrent"><span>↓</span><div><strong>Torrent</strong><small>Magnet lub plik .torrent</small></div><b>→</b></button>' +
+      '</div>' +
+      '<div class="lms1-subcard"><div class="lms1-panel-head"><h2>Biblioteka</h2><button type="button" data-external="jellyfin">Otwórz Jellyfin →</button></div><p>Filmy, seriale i anime po dodaniu trafiają do bibliotek NAS i są widoczne w Jellyfinie.</p></div>';
+  }
+
+  function buildDownloadsView() {
+    const view = document.querySelector('[data-view="downloads"]');
+    view.innerHTML = pageIntro("QBITTORRENT","Pobieranie","Pełna kontrola nad aktywnymi transferami i miejscem docelowym.");
+    const legacy = document.querySelector("#nas-download-panel");
+    if (legacy) {
+      legacy.classList.add("lms1-qbt-panel");
+      view.appendChild(legacy);
+    }
+  }
+
+  function buildServerView() {
+    const view = document.querySelector('[data-view="server"]');
+    view.innerHTML =
+      pageIntro("LUDIUS MS","Serwer","Stan usług, wykorzystanie NAS i skróty administracyjne.") +
+      '<div class="lms1-server-grid">' +
+        '<article class="lms1-subcard"><div class="lms1-panel-head"><h2>Zasoby</h2><button type="button" id="lms1-refresh">' + icon("refresh") + ' Odśwież</button></div><div id="lms1-server-resources" class="lms1-resource-list"></div></article>' +
+        '<article class="lms1-subcard"><div class="lms1-panel-head"><h2>Usługi</h2><span id="lms1-server-services-count">—</span></div><div id="lms1-server-services" class="lms1-server-services"></div></article>' +
+      '</div>';
+  }
+
+  function buildActivityView() {
+    const view = document.querySelector('[data-view="activity"]');
+    view.innerHTML = pageIntro("HISTORIA","Aktywność","Ostatnie zdarzenia zapisane przez Ludius MS.") + '<article class="lms1-subcard"><div id="lms1-activity-full" class="lms1-activity-list full"></div></article>';
+  }
+
+  function buildSettingsView() {
+    const view = document.querySelector('[data-view="settings"]');
+    view.innerHTML =
+      pageIntro("KONFIGURACJA","Ustawienia","Najczęstsze opcje dashboardu i usług.") +
+      '<div class="lms1-settings-grid">' +
+        settingsCard("refresh","Odśwież dane","Pobierz aktualny stan serwera","refresh") +
+        settingsLink(URLS.jellyfin,"Jellyfin","Biblioteka multimediów","media") +
+      '</div>';
+  }
+
+  function pageIntro(kicker, title, subtitle) {
+    return '<div class="lms1-page-intro"><span>' + kicker + '</span><h1>' + title + '</h1><p>' + subtitle + '</p></div>';
+  }
+
+  function settingsCard(action, title, subtitle, glyph) {
+    return '<button type="button" data-setting="' + action + '"><span>' + icon(glyph) + '</span><div><strong>' + title + '</strong><small>' + subtitle + '</small></div><b>›</b></button>';
+  }
+
+  function settingsLink(url, title, subtitle, glyph) {
+    return '<a href="' + url + '" target="_blank" rel="noopener"><span>' + icon(glyph) + '</span><div><strong>' + title + '</strong><small>' + subtitle + '</small></div><b>↗</b></a>';
+  }
+
+  function wireApp() {
+    const app = document.querySelector("#lms-1to1-app");
+
+    app.addEventListener("click", event => {
+      const page = event.target.closest("[data-page]");
+      if (page) {
+        event.preventDefault();
+        setPage(page.dataset.page);
+      }
+
+      const external = event.target.closest("[data-external]");
+      if (external) window.open(URLS.jellyfin, "_blank", "noopener");
+
+      const poster = event.target.closest("[data-jellyfin-id]");
+      if (poster) {
+        window.open(URLS.jellyfin + "/web/#/details?id=" + encodeURIComponent(poster.dataset.jellyfinId), "_blank", "noopener");
+      }
+
+      const setting = event.target.closest("[data-setting]");
+      if (setting && setting.dataset.setting === "wallpaper") document.querySelector("#nas-wallpaper")?.click();
+      if (setting && setting.dataset.setting === "refresh") refreshAll(true);
+    });
+
+    document.querySelector("#lms1-add-movie").addEventListener("click", () => window.dispatchEvent(new CustomEvent("nas:local-media", {detail:{type:"movie"}})));
+    document.querySelector("#lms1-add-series").addEventListener("click", () => window.dispatchEvent(new CustomEvent("nas:local-media", {detail:{type:"series"}})));
+    document.querySelector("#lms1-add-torrent").addEventListener("click", () => document.querySelector("#nas-v2-torrent")?.click());
+    document.querySelector("#lms1-refresh").addEventListener("click", () => refreshAll(true));
+    document.querySelector("#lms1-bell")?.remove();
+
+    const search = document.querySelector("#lms1-search");
+    search.addEventListener("keydown", event => {
+      if (event.key === "Enter" && search.value.trim()) {
+        window.open(URLS.jellyfin + "/web/#/search.html?query=" + encodeURIComponent(search.value.trim()), "_blank", "noopener");
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        search.focus();
+      }
+    });
+
+    const theme = document.querySelector("#lms1-theme");
+    theme.addEventListener("click", () => {
+      document.querySelector("#lms-1to1-app").classList.toggle("low-light");
+      localStorage.setItem("lms-low-light", document.querySelector("#lms-1to1-app").classList.contains("low-light") ? "1" : "0");
+    });
+
+    if (localStorage.getItem("lms-low-light") === "1") document.querySelector("#lms-1to1-app").classList.add("low-light");
+  }
+
+  function setPage(page) {
+    if (!pageCopy[page]) return;
+    state.page = page;
+
+    document.querySelectorAll(".lms1-nav [data-page]").forEach(button => button.classList.toggle("active", button.dataset.page === page));
+    document.querySelectorAll(".lms1-view").forEach(view => view.classList.toggle("active", view.dataset.view === page));
+
+    const title = document.querySelector("#lms1-page-title");
+    const subtitle = document.querySelector("#lms1-page-subtitle");
+    title.textContent = pageCopy[page][0];
+    subtitle.textContent = pageCopy[page][1];
+
+    document.querySelector(".lms1-page-title").classList.toggle("show", page !== "dashboard");
+    document.querySelector(".lms1-main").scrollTo({top:0, behavior:"smooth"});
+    if (page === "activity") renderActivity();
+    if (page === "server") renderServer();
+  }
+
+  async function loadProfile() {
+    try {
+      const response = await fetch("/lms-assets/lms-profile.json", {cache:"no-store"});
+      if (!response.ok) return;
+      const profile = await response.json();
+      const name = typeof profile.displayName === "string" ? profile.displayName.trim().slice(0,40) : "";
+      const target = document.querySelector("#lms1-display-name");
+      const avatar = document.querySelector("#lms1-avatar");
+      if (target) target.textContent = name;
+      const cursor = document.querySelector("#lms1-name-cursor");
+      if (cursor) cursor.textContent = name ? "_" : "";
+      if (avatar) avatar.textContent = name ? name[0].toLocaleUpperCase("pl-PL") : "L";
+    } catch (error) { console.warn("Profil LMS jest niedostępny:", error); }
+  }
+
+  function updateClock() {
+    const now = new Date();
+    const hour = now.getHours();
+    const greeting = hour < 5 ? "Dobranoc," : hour < 12 ? "Dzień dobry," : hour < 18 ? "Dobre popołudnie," : hour < 23 ? "Dobry wieczór," : "Dobranoc,";
+    const g = document.querySelector("#lms1-greeting");
+    const time = document.querySelector("#lms1-time");
+    const date = document.querySelector("#lms1-date");
+    if (g) g.textContent = greeting;
+    if (time) time.textContent = now.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
+    if (date) date.textContent = now.toLocaleDateString("pl-PL",{weekday:"long",day:"numeric",month:"long"});
+  }
+
+  function pushHistory(key, value) {
+    const list = state.history[key];
+    list.push(Number(value || 0));
+    while (list.length > 26) list.shift();
+  }
+
+  function renderSpark(id, values, fixedMax) {
+    const line = document.querySelector("#lms1-" + id + "-spark");
+    if (!line || !values.length) return;
+    const max = fixedMax || Math.max(1, ...values);
+    const points = values.map((value, index) => {
+      const x = values.length === 1 ? 0 : index / (values.length - 1) * 100;
+      const y = 29 - Math.min(1, Number(value || 0) / max) * 25;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    line.setAttribute("points", points);
+  }
+
+  function renderMetrics() {
+    if (!state.system) return;
+    const s = state.system;
+    const q = state.qbt || {};
+    const net = Number(q.downloadSpeed || 0) + Number(q.uploadSpeed || 0);
+
+    pushHistory("cpu",s.cpu);
+    pushHistory("ram",s.ram);
+    pushHistory("disk",s.disk);
+    pushHistory("net",net);
+
+    document.querySelector("#lms1-cpu-value").textContent = s.cpu + "%";
+    document.querySelector("#lms1-ram-value").textContent = s.ram + "%";
+    document.querySelector("#lms1-disk-value").textContent = s.disk + "%";
+    document.querySelector("#lms1-disk-sub").textContent = s.diskUsedGB + " / " + s.diskTotalGB + " GB";
+    document.querySelector("#lms1-net-value").textContent = formatSpeed(q.downloadSpeed || 0);
+    document.querySelector("#lms1-net-sub").textContent = "↓ " + formatSpeed(q.downloadSpeed || 0) + "  ·  ↑ " + formatSpeed(q.uploadSpeed || 0);
+    updateUptimeLive();
+    document.querySelector("#lms1-up-boot").textContent = "od " + bootDate(s.uptimeSeconds);
+
+    [["cpu",s.cpu],["ram",s.ram],["disk",s.disk]].forEach(pair => {
+      const bar = document.querySelector("#lms1-" + pair[0] + "-bar");
+      if (bar) bar.style.width = Math.max(0,Math.min(100,Number(pair[1]))) + "%";
+    });
+
+    const netMax = Math.max(1,...state.history.net);
+    const netBar = document.querySelector("#lms1-net-bar");
+    if (netBar) netBar.style.width = Math.min(100,net / netMax * 100) + "%";
+
+    renderSpark("cpu",state.history.cpu,100);
+    renderSpark("ram",state.history.ram,100);
+    renderSpark("disk",state.history.disk,100);
+    renderSpark("net",state.history.net,netMax);
+  }
+
+  function renderStatus() {
+    if (!state.status) return;
+    const rows = serviceMeta;
+    const online = rows.filter(row => state.status[row[0]]?.online).length;
+    const all = online === rows.length;
+
+    document.querySelector("#lms1-global-status").textContent = all ? "Ludius MS działa poprawnie." : online + " z " + rows.length + " usług online.";
+    document.querySelector("#lms1-server-state").textContent = all ? "Serwer online" : online + "/" + rows.length + " usług online";
+    document.querySelector("#lms1-service-count").textContent = online + " / " + rows.length;
+    document.querySelector("#lms1-server-services-count").textContent = online + " / " + rows.length + " online";
+    document.querySelector(".lms1-server-pill").classList.toggle("warning",!all);
+
+    const box = document.querySelector("#lms1-services-row");
+    box.innerHTML = rows.map(row => {
+      const data = state.status[row[0]] || {};
+      return '<button type="button" ' + (row[3] ? 'data-url="' + row[3] + '"' : 'data-page="downloads"') + '>' +
+        '<span class="lms1-service-icon">' + icon(row[2]) + '</span>' +
+        '<div><strong>' + esc(row[1]) + '</strong><small><i class="' + (data.online ? "online" : "offline") + '"></i>' + (data.online ? "Online" : "Offline") + '</small></div>' +
+        '<em>' + (data.latency == null ? "—" : data.latency + " ms") + '</em>' +
+      '</button>';
+    }).join("");
+
+    box.querySelectorAll("[data-url]").forEach(button => button.addEventListener("click",() => window.open(button.dataset.url,"_blank","noopener")));
+  }
+
+  function renderRecent() {
+    const box = document.querySelector("#lms1-recent-row");
+    const items = Array.isArray(state.recent) ? state.recent.slice(0,6) : [];
+    if (!items.length) {
+      box.innerHTML = '<div class="lms1-loading">Brak pozycji do wyświetlenia.</div>';
+      return;
+    }
+
+    box.innerHTML = items.map((item,index) => {
+      const image = item.hasImage ? '<img loading="lazy" src="' + API + '/api/jellyfin/image/' + encodeURIComponent(item.id) + '" alt="">' : '<span class="lms1-poster-fallback">LMS</span>';
+      const badge = index === 0 || index === 2 ? '<b class="lms1-badge">NOWE</b>' : "";
+      return '<button type="button" class="lms1-poster" data-jellyfin-id="' + esc(item.id) + '">' +
+        '<span class="lms1-poster-art">' + image + badge + '</span>' +
+        '<strong>' + esc(item.name) + '</strong>' +
+        '<small>' + esc(item.year || (item.type === "Series" ? "Serial" : "Film")) + '</small>' +
+      '</button>';
+    }).join("");
+  }
+
+  function activityLabel(event) {
+    const type = String(event.type || "").toLowerCase();
+    if (type.includes("episode")) return ["Dodano odcinek","media"];
+    if (type.includes("movie")) return ["Dodano do biblioteki","folder"];
+    if (type.includes("download") || type.includes("torrent")) return ["Zakończono pobieranie","download"];
+    return ["Aktywność serwera","settings"];
+  }
+
+  function activityRows(limit) {
+    return state.activity.slice(0,limit).map(event => {
+      const meta = activityLabel(event);
+      return '<div class="lms1-activity-row"><span>' + icon(meta[1]) + '</span><div><strong>' + meta[0] + '</strong><small>' + esc(event.title || "") + (event.detail ? " · " + esc(event.detail) : "") + '</small></div><time>' + relativeTime(event) + '</time></div>';
+    }).join("");
+  }
+
+  function renderActivity() {
+    const home = document.querySelector("#lms1-home-activity");
+    const full = document.querySelector("#lms1-activity-full");
+    const empty = '<div class="lms1-loading">Brak zapisanej aktywności.</div>';
+    if (home) home.innerHTML = state.activity.length ? activityRows(4) : empty;
+    if (full) full.innerHTML = state.activity.length ? activityRows(30) : empty;
+  }
+
+  function renderServer() {
+    const res = document.querySelector("#lms1-server-resources");
+    if (state.system && res) {
+      res.innerHTML =
+        resourceRow("CPU",state.system.cpu + "%",state.system.cpu) +
+        resourceRow("RAM",state.system.ram + "%",state.system.ram) +
+        resourceRow("Dysk NAS",state.system.diskUsedGB + " / " + state.system.diskTotalGB + " GB",state.system.disk) +
+        '<div class="lms1-resource-uptime"><span>Uptime</span><strong>' + formatUptime(state.system.uptimeSeconds) + '</strong></div>';
+    }
+
+    const services = document.querySelector("#lms1-server-services");
+    if (state.status && services) {
+      services.innerHTML = serviceMeta.map(row => {
+        const data = state.status[row[0]] || {};
+        return '<a ' + (row[3] ? 'href="' + row[3] + '" target="_blank" rel="noopener"' : 'href="#" data-page="downloads"') + '><span>' + icon(row[2]) + '</span><div><strong>' + row[1] + '</strong><small>' + (data.online ? "Online · " + (data.latency == null ? "—" : data.latency + " ms") : "Offline") + '</small></div><i class="' + (data.online ? "online" : "offline") + '"></i></a>';
+      }).join("");
+    }
+  }
+
+  function resourceRow(label,value,percent) {
+    return '<div class="lms1-resource-row"><div><span>' + label + '</span><strong>' + value + '</strong></div><i><b style="width:' + Math.max(0,Math.min(100,Number(percent || 0))) + '%"></b></i></div>';
+  }
+
+  async function refreshAll(manual) {
+    const results = await Promise.allSettled([
+      getJSON("/api/system"),
+      getJSON("/api/status"),
+      getJSON("/api/jellyfin"),
+      getJSON("/api/qbittorrent"),
+      getJSON("/api/activity"),
+      getJSON("/api/jellyfin/recent?limit=8")
+    ]);
+
+    if (results[0].status === "fulfilled") {
+      state.system = results[0].value;
+      state.uptimeSampleMs = Date.now();
+    }
+    if (results[1].status === "fulfilled") state.status = results[1].value;
+    if (results[2].status === "fulfilled") state.jellyfin = results[2].value;
+    if (results[3].status === "fulfilled") state.qbt = results[3].value;
+    if (results[4].status === "fulfilled") {
+      const data = results[4].value;
+      state.activity = Array.isArray(data) ? data : (data.events || data.activity || data.items || []);
+    }
+    if (results[5].status === "fulfilled") state.recent = results[5].value.items || [];
+
+    renderMetrics();
+    renderStatus();
+    renderRecent();
+    renderActivity();
+    renderServer();
+
+    if (manual) {
+      const title = document.querySelector("#lms1-page-title");
+      title.classList.add("pulse");
+      setTimeout(() => title.classList.remove("pulse"),500);
+    }
+  }
+
+  function init() {
+    const root = document.querySelector("#nas-dashboard");
+    const qbt = document.querySelector("#nas-download-panel");
+    const hub = document.querySelector("#nas-media-hub-v2");
+
+    if (!root || !qbt || !hub) {
+      setTimeout(init,120);
+      return;
+    }
+
+    buildApp();
+    loadProfile();
+    window.addEventListener("nas:dashboard-home", () => setPage("dashboard"));
+    updateClock();
+    refreshAll(false);
+    setInterval(updateClock,1000);
+    setInterval(updateUptimeLive,2000);
+    setInterval(() => refreshAll(false),10000);
+    console.log("Ludius MS 1TO1 dashboard loaded");
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",init);
+  else init();
+})();
+
+/* Pobieranie qBittorrent w aktywności nowego dashboardu. */
+(() => {
+  const esc = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  const bytes = n => { const v = Math.max(0, Number(n) || 0); if (!v) return "0 B"; const i = Math.min(4, Math.floor(Math.log(v) / Math.log(1024))); return `${(v / 1024 ** i).toFixed(i >= 2 ? 1 : 0)} ${["B", "KB", "MB", "GB", "TB"][i]}`; };
+  const observed=new Set();
+  function show(torrents) {
+    const card=document.querySelector(".lms1-activity-card"), history=document.querySelector("#lms1-home-activity");
+    if (!card || !history) return;
+    let box=document.querySelector("#lms1-qbt-transfers");
+    if (!box) { box=document.createElement("div"); box.id="lms1-qbt-transfers"; card.insertBefore(box,history); }
+    const ongoing=(Array.isArray(torrents)?torrents:[]).filter(t => {
+      const state=String(t.state||"").toLowerCase(), pct=Number(t.progress||0);
+      if(pct>=100||["error", "missingfiles"].includes(state))return false;
+      if(!state.startsWith("stopped")&&!state.startsWith("paused"))observed.add(t.hash);
+      return !(state.startsWith("stopped")&&pct===0&&!observed.has(t.hash));
+    }).slice(0,5);
+    box.hidden=!ongoing.length;
+    box.innerHTML=ongoing.length?'<div class="lms1-qbt-heading">POBIERANIE TORRENTÓW</div>'+ongoing.map(t => {
+      const pct=Math.max(0,Math.min(100,Number(t.progress||0))), state=String(t.state||"").toLowerCase();
+      const paused=state.startsWith("stopped")||state.startsWith("paused");
+      const label=paused?"Wstrzymano":state.includes("stall")||state.includes("queued")?"Oczekiwanie":state.includes("check")?"Sprawdzanie":"Pobieranie";
+      const hash=String(t.hash||"");
+      const controls=/^[a-f0-9]{40}$|^[a-f0-9]{64}$/.test(hash)?`<div class="lms-transfer-actions"><button type="button" data-lms-qbt="${paused?"resume":"pause"}" data-hash="${hash}">${paused?"▶ Wznów":"Ⅱ Pauza"}</button><button type="button" class="stop" data-lms-qbt="cancel" data-hash="${hash}">■ Zatrzymaj</button></div>`:"";
+      return `<div class="nas-transfer-job lms1-qbt-job"><div><strong>↓ ${esc(t.name||"Torrent")}</strong><b>${pct.toFixed(1)}%</b></div><div class="nas-card-transfer-bar"><i style="width:${pct}%"></i></div><small>${label} • ${bytes(t.downloaded)} / ${bytes(t.size)} • ↓ ${bytes(t.downloadSpeed)}/s</small>${controls}</div>`;
+    }).join(""):"";
+    const local=document.querySelector("#lms1-live-transfers:not([hidden])");
+    const hasHistory=!!history.querySelector(".lms1-activity-row");
+    history.hidden=(ongoing.length>0||!!local)&&!hasHistory;
+    card.classList.toggle("has-live-transfers",ongoing.length>0||!!local);
+  }
+  window.addEventListener("nas:qbt-progress",event=>show(event.detail));
+  const pending=new Set();
+  document.addEventListener("click",async event=>{
+    const button=event.target.closest?.("#lms1-qbt-transfers [data-lms-qbt]");
+    if(!button)return;
+    const hash=button.dataset.hash,action=button.dataset.lmsQbt;
+    if(!/^[a-f0-9]{40}$|^[a-f0-9]{64}$/.test(hash)||pending.has(hash))return;
+    if(action==="cancel"&&!window.confirm("Usunąć torrent z kolejki? Pobrane pliki pozostaną na dysku."))return;
+    pending.add(hash);button.disabled=true;
+    try{
+      const response=await fetch("/api/qbittorrent/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({hash,action})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||result.ok===false)throw new Error(result.error||`HTTP ${response.status}`);
+      const latest=await fetch("/api/qbittorrent",{cache:"no-store"});
+      if(latest.ok){const data=await latest.json();window.dispatchEvent(new CustomEvent("nas:qbt-progress",{detail:data.torrents||[]}));}
+    }catch(error){window.alert(error.message||"Nie udało się zmienić stanu torrenta.");}
+    finally{pending.delete(hash);button.disabled=false;}
+  });
 })();

@@ -1,5 +1,3 @@
-[Reading 42 lines from start (total: 42 lines, 0 remaining)]
-
 #!/usr/bin/env bash
 set -u
 
@@ -24,12 +22,16 @@ else
   failure '/etc/os-release is unavailable'
 fi
 
-command -v docker >/dev/null 2>&1 && pass "Docker: $(docker --version 2>/dev/null)" || failure 'Docker is not installed'
-docker compose version >/dev/null 2>&1 && pass "Compose: $(docker compose version 2>/dev/null)" || failure 'Docker Compose plugin is not available'
+if command -v docker >/dev/null 2>&1; then
+  pass "Docker: $(docker --version 2>/dev/null)"
+  docker compose version >/dev/null 2>&1 && pass "Compose: $(docker compose version 2>/dev/null)" || warning 'Docker Compose plugin is not installed yet - LMS can install it'
+  if docker info >/dev/null 2>&1; then pass 'Current user can access Docker'; else warning 'Current user cannot access Docker without elevation'; fi
+else
+  warning 'Docker is not installed yet - LMS can install it'
+  warning 'Docker Compose plugin is not installed yet - LMS can install it'
+fi
 command -v curl >/dev/null 2>&1 && pass 'curl available' || failure 'curl is required'
 command -v lsblk >/dev/null 2>&1 && pass 'lsblk available' || failure 'lsblk is required for storage discovery'
-
-if docker info >/dev/null 2>&1; then pass 'Current user can access Docker'; else warning 'Current user cannot access Docker without elevation'; fi
 
 mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
 if [ "$mem_kb" -ge 1900000 ]; then pass "RAM: $((mem_kb/1024)) MiB"; else warning "RAM: $((mem_kb/1024)) MiB - test build target is >= 2 GiB"; fi
@@ -37,10 +39,27 @@ if [ "$mem_kb" -ge 1900000 ]; then pass "RAM: $((mem_kb/1024)) MiB"; else warnin
 root_free_kb=$(df -Pk / | awk 'NR==2 {print $4}')
 if [ "${root_free_kb:-0}" -ge 10485760 ]; then pass "Root free space: $((root_free_kb/1024/1024)) GiB"; else warning 'Less than 10 GiB free on root filesystem'; fi
 
-printf '\nStorage candidates:\n'
-lsblk -dnpo NAME,SIZE,TYPE,FSTYPE 2>/dev/null | awk '$3=="disk" {printf "  - %s  %s  %s\n",$1,$2,($4==""?"unformatted":$4)}'
+printf '\nStorage disks:\n'
+root_source=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+root_disk=""
+if [ -n "$root_source" ]; then
+  root_disk=$(lsblk -sno PATH "$root_source" 2>/dev/null | head -n1 || true)
+fi
+
+storage_found=0
+while read -r name size type fstype; do
+  [ "$type" = "disk" ] || continue
+  if [ -n "$root_disk" ] && [ "$name" = "$root_disk" ]; then
+    printf '  - %s  %s  system disk (protected)\n' "$name" "$size"
+    continue
+  fi
+  storage_found=1
+  printf '  - %s  %s  %s\n' "$name" "$size" "${fstype:-unformatted}"
+done < <(lsblk -dnpo NAME,SIZE,TYPE,FSTYPE 2>/dev/null)
+
+if [ "$storage_found" -eq 0 ]; then
+  printf '  (no separate data disk detected)\n'
+fi
 
 printf '\nSummary: %d OK, %d warning(s), %d failure(s)\n' "$ok" "$warn" "$fail"
 [ "$fail" -eq 0 ]
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

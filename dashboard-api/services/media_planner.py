@@ -1,4 +1,5 @@
 import os
+import re
 
 from config import (
     LOCAL_MEDIA_LIBRARIES,
@@ -77,6 +78,26 @@ def planner_item(original, target_name, target_path, size=0, kind="other",
     return result
 
 
+def selected_tmdb_id(data):
+    value = data.get("tmdbId")
+    if value in (None, ""):
+        return None
+    value = str(value)
+    if not re.fullmatch(r"[1-9][0-9]{0,11}", value):
+        raise MediaPlannerError("Nieprawidłowy identyfikator TMDB")
+    return value
+
+
+def media_folder(title, year, tmdb_id):
+    # Leave room for the Jellyfin provider ID; truncation must never erase it.
+    if tmdb_id:
+        title = title[:120].rstrip(" .")
+    base = f"{title} ({year})" if year else title
+    if tmdb_id:
+        base += f" [tmdbid-{tmdb_id}]"
+    return safe_media_component(base, title)
+
+
 def plan_movie(data, library_id, library, files):
     if library_id not in ("movies", "animeMovies"):
         raise MediaPlannerError("Film może trafić tylko do Filmy lub Anime Filmy")
@@ -97,8 +118,7 @@ def plan_movie(data, library_id, library, files):
     else:
         year = None
 
-    folder = f"{title} ({year})" if year else title
-    folder = safe_media_component(folder, title)
+    folder = media_folder(title, year, selected_tmdb_id(data))
 
     planned = []
 
@@ -140,6 +160,18 @@ def plan_series(data, library_id, library, files):
     title = safe_media_component(data.get("title", ""), "")
     if not title:
         raise MediaPlannerError("Podaj tytuł serialu")
+
+    year = data.get("year")
+    if year not in (None, ""):
+        try:
+            year = int(year)
+        except (TypeError, ValueError):
+            raise MediaPlannerError("Nieprawidłowy rok serialu")
+        if year < 1888 or year > 2200:
+            raise MediaPlannerError("Nieprawidłowy rok serialu")
+    else:
+        year = None
+    folder = media_folder(title, year, selected_tmdb_id(data))
 
     try:
         default_season = int(data.get("season", 1))
@@ -212,7 +244,7 @@ def plan_series(data, library_id, library, files):
         target_name = base + video["ext"]
         target_path = planner_target(
             library,
-            [title, season_folder, target_name]
+            [folder, season_folder, target_name]
         )
 
         planned.append(
@@ -249,7 +281,7 @@ def plan_series(data, library_id, library, files):
         target_name = base + language_suffix + subtitle["ext"]
         target_path = planner_target(
             library,
-            [title, season_folder, target_name]
+            [folder, season_folder, target_name]
         )
 
         planned.append(
@@ -278,7 +310,7 @@ def plan_series(data, library_id, library, files):
         "title": title,
         "season": default_season,
         "firstEpisode": first_episode,
-        "folder": title,
+        "folder": folder,
         "items": planned
     }
 
@@ -366,6 +398,7 @@ def create_media_plan(data):
         "ok": True,
         "library": library_id,
         "libraryName": library["name"],
+        "libraryRoot": library["path"],
         "conflicts": conflicts,
         "needsCheck": checks,
         "ready": conflicts == 0 and checks == 0,

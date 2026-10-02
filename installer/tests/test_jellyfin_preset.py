@@ -80,6 +80,19 @@ class JellyfinPresetTests(unittest.TestCase):
         self.assertEqual(kwargs["token"], "TOKEN")
 
     @patch("service_bootstrap._jellyfin_json")
+    def test_tmdb_is_prioritized_only_when_already_available(self, request):
+        original = {"TypeOptions": [{"Type": "Series", "MetadataFetcherOrder": ["TVDB", "TheMovieDb"],
+                      "ImageFetcherOrder": ["Fanart", "TheMovieDb"], "MetadataFetchers": ["TVDB", "TheMovieDb"]},
+                     {"Type": "Episode", "MetadataFetcherOrder": ["TVDB"]}]}
+        jellyfin_update_library_preferences("http://jf", "TOKEN", item_id="1", options=original,
+                                            metadata_language="pl", subtitle_language="pl")
+        result = request.call_args.args[2]["LibraryOptions"]["TypeOptions"]
+        self.assertEqual(result[0]["MetadataFetcherOrder"], ["TheMovieDb", "TVDB"])
+        self.assertEqual(result[0]["ImageFetcherOrder"], ["TheMovieDb", "Fanart"])
+        self.assertEqual(result[0]["MetadataFetchers"], ["TVDB", "TheMovieDb"])
+        self.assertEqual(result[1]["MetadataFetcherOrder"], ["TVDB"])
+
+    @patch("service_bootstrap._jellyfin_json")
     def test_library_preferences_preserve_existing_options(self, request):
         original = {"EnableRealtimeMonitor": True, "AutomaticRefreshIntervalDays": 0}
         jellyfin_update_library_preferences(
@@ -90,11 +103,10 @@ class JellyfinPresetTests(unittest.TestCase):
         opts = payload["LibraryOptions"]
         self.assertTrue(opts["EnableRealtimeMonitor"])
         self.assertEqual(opts["PreferredMetadataLanguage"], "pl")
+        self.assertEqual(opts["MetadataCountryCode"], "PL")
         self.assertEqual(opts["SubtitleDownloadLanguages"], ["en"])
         self.assertTrue(opts["SaveSubtitlesWithMedia"])
 
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

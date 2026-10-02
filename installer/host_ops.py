@@ -1,5 +1,3 @@
-[Reading 205 lines from start (total: 205 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import os
 import shutil
@@ -71,7 +69,7 @@ class HostOps:
             event["status"] = "done"
         return event
 
-    def write_text(self, path, text, *, action_id, mode=0o644):
+    def write_text(self, path, text, *, action_id, mode=0o644, preserve_inode=False):
         path = Path(path)
         event = self._event(
             action_id,
@@ -82,10 +80,16 @@ class HostOps:
         )
         if self.enabled:
             path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = path.with_name(path.name + ".lms-tmp")
-            tmp.write_text(text, encoding="utf-8")
-            tmp.chmod(mode)
-            os.replace(tmp, path)
+            if preserve_inode and path.exists():
+                # Docker single-file bind mounts keep the original inode.
+                # Rewrite a mounted secret in place instead of replacing it.
+                path.write_text(text, encoding="utf-8")
+                path.chmod(mode)
+            else:
+                tmp = path.with_name(path.name + ".lms-tmp")
+                tmp.write_text(text, encoding="utf-8")
+                tmp.chmod(mode)
+                os.replace(tmp, path)
             event["status"] = "done"
         return event
 
@@ -205,5 +209,3 @@ class HostOps:
                 )
             event["status"] = "done"
         return event
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

@@ -1,5 +1,3 @@
-[Reading 78 lines from start (total: 78 lines, 0 remaining)]
-
 import sys
 import tempfile
 import unittest
@@ -78,5 +76,3 @@ class FinalCredentialsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

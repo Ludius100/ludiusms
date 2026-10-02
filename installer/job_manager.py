@@ -1,5 +1,3 @@
-[Reading 59 lines from start (total: 59 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import threading
 
@@ -59,5 +57,3 @@ class JobManager:
             self._threads[job_id] = thread
             thread.start()
         return True
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

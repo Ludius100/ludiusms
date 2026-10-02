@@ -19,6 +19,7 @@ Pierwsza wersja możliwa do samodzielnego zainstalowania na czystej instancji Or
 - ~~lokalny upload mediów~~
 - ~~tworzenie graficznego instalatora na platformie Oracle Cloud w formie WEB~~
 - ~~testy instalatora na czystej instancji Oracle~~
+- ~~czysta instalacja i restart na testowej VM Ubuntu (build r10)~~
 - **testy zewnętrznych użytkowników**
 
 ## 🔧 0.2 — Poprawa stabilności

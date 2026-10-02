@@ -1,5 +1,3 @@
-[Reading 139 lines from start (total: 139 lines, 0 remaining)]
-
 import copy
 import sys
 import unittest
@@ -46,6 +44,16 @@ def config_fixture():
         "network": "tailscale",
     }
 class PlannerTests(unittest.TestCase):
+    def test_dashboard_name_is_optional_and_validated(self):
+        cfg = config_fixture()
+        self.assertEqual(build_plan(cfg,host_fixture())["config"]["display_name"], "")
+        cfg["display_name"] = "  Ala  "
+        self.assertEqual(build_plan(cfg,host_fixture())["config"]["display_name"], "Ala")
+        for name in ("<script>", "A"*41, "Jan\n<script>", 99):
+            cfg["display_name"] = name
+            with self.subTest(name=name), self.assertRaises(PlanError):
+                build_plan(cfg, host_fixture())
+
     def test_existing_install_is_non_destructive(self):
         plan = build_plan(config_fixture(), host_fixture())
         self.assertFalse(plan["destructive"])
@@ -139,5 +147,3 @@ class PlannerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

@@ -137,6 +137,22 @@ def _normalize_jellyfin_settings(value, enabled):
     }
 
 
+def _normalize_display_name(value):
+    """Opcjonalne imię użytkownika, bez znaczników i znaków sterujących."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise PlanError("Imię musi być tekstem.")
+    name = " ".join(value.strip().split())
+    if not name:
+        return ""
+    if len(name) > 40 or not name[0].isalpha() or any(
+        not (character.isalpha() or character in " -'’") for character in name
+    ):
+        raise PlanError("Imię: maksymalnie 40 znaków, litery, spacje i łącznik.")
+    return name
+
+
 def normalize_config(payload, host):
     if not isinstance(payload, dict):
         raise PlanError("Nieprawidłowy format konfiguracji.")
@@ -155,6 +171,7 @@ def normalize_config(payload, host):
     jellyfin = _normalize_jellyfin_settings(payload.get("jellyfin"), services["jellyfin"] != "skip")
 
     result = {
+        "display_name": _normalize_display_name(payload.get("display_name")),
         "disk": disk.get("path"),
         "storage": storage,
         "libraries": libraries,
@@ -305,5 +322,3 @@ def build_plan(payload, host):
         "requires_interaction": any(item["interaction"] for item in actions),
     }
     return plan
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

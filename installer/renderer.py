@@ -145,7 +145,7 @@ def _dashboard_api_service(config):
     build:
       context: ./dashboard-api
     container_name: lms-api
-    restart: unless-stopped
+    restart: on-failure:5
     user: "${LMS_UID}:${LMS_GID}"
     expose:
       - "8090"
@@ -163,7 +163,7 @@ def _jellyfin_service():
     return """  jellyfin:
     image: jellyfin/jellyfin:12.1
     container_name: lms-jellyfin
-    restart: unless-stopped
+    restart: on-failure:5
     user: "${LMS_UID}:${LMS_GID}"
     ports:
       - "${LMS_BIND_ADDRESS}:8096:8096/tcp"
@@ -182,7 +182,7 @@ def _qbittorrent_service():
     return """  qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: lms-qbittorrent
-    restart: unless-stopped
+    restart: on-failure:5
     ports:
       - "${LMS_BIND_ADDRESS}:8080:8080/tcp"
       - "${LMS_BIND_ADDRESS}:6881:6881/tcp"
@@ -215,6 +215,40 @@ def render_compose(plan):
     return "".join(parts)
 
 
+def render_storage_guard(plan):
+    """Po restarcie VM podłącz kontenery LMS dopiero do zamontowanego NAS."""
+    storage = plan["config"]["storage"]
+    mountpoint = str(storage["mountpoint"])
+    managed = ["dashboard-api"]
+    if plan["config"]["services"]["jellyfin"] == "install":
+        managed.append("jellyfin")
+    if plan["config"]["services"]["qbittorrent"] == "install":
+        managed.append("qbittorrent")
+    # Kontenery z bind-mountem NAS używają restart: on-failure,
+    # więc Docker nie wystartuje ich sam przed zamontowaniem dysku.
+    # Systemd interpretuje % i inne znaki specjalnie; punkty montowania
+    # pochodzą z planu dysków, a nie z dowolnego pola formularza.
+    if any(c in mountpoint for c in " \t\n%") or not mountpoint.startswith("/"):
+        raise ValueError("Nieprawidłowy punkt montowania dla usługi LMS.")
+    return """[Unit]
+Description=Ludius MS — odtworzenie podłączenia NAS po uruchomieniu
+Requires=docker.service
+After=docker.service
+RequiresMountsFor=%s
+ConditionPathIsMountPoint=%s
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/usr/bin/findmnt --mountpoint %s
+ExecStart=/usr/bin/docker compose --project-directory /opt/lms --env-file /opt/lms/.env -f /opt/lms/compose.yaml up -d --no-build --no-deps --force-recreate %s
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
+""" % (mountpoint, mountpoint, mountpoint, " ".join(managed))
+
+
 def render_bundle(plan, *, uid, gid, bind_address, allowed_hosts, timezone="Europe/Warsaw"):
     return {
         "compose.yaml": render_compose(plan),
@@ -238,5 +272,3 @@ def render_bundle(plan, *, uid, gid, bind_address, allowed_hosts, timezone="Euro
         "homepage/config/widgets.yaml": render_empty_yaml(),
         "homepage/config/bookmarks.yaml": render_empty_yaml(),
     }
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

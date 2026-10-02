@@ -216,5 +216,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

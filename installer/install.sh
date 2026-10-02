@@ -1,5 +1,3 @@
-[Reading 109 lines from start (total: 109 lines, 0 remaining)]
-
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -109,5 +107,3 @@ if [[ "${LMS_ALLOW_CHANGES:-0}" == "1" ]]; then
 fi
 
 exec python3 "$ROOT/setup_server.py" "${ARGS[@]}"
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

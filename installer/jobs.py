@@ -1,5 +1,3 @@
-[Reading 247 lines from start (total: 247 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import hashlib
 import json
@@ -247,5 +245,3 @@ class InstallJobRunner:
         state["error"] = None
         self.store.save(state)
         return self.run(job_id, enabled=enabled)
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

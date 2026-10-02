@@ -1,4 +1,6 @@
 import time
+import re
+import urllib.error
 import urllib.parse
 
 from config import QBITTORRENT_LIBRARIES
@@ -49,6 +51,21 @@ def _require_success(status, action):
         raise RuntimeError(
             f"{action} HTTP {status}"
         )
+
+
+def _qb_step(opener, endpoint, payload, label):
+    """Zwróć czytelny etap awarii bez ujawniania sekretów ani URL magnetu."""
+    try:
+        status = qb_post(opener, endpoint, payload)
+    except urllib.error.HTTPError as exc:
+        raise QBitTorrentError(
+            f"qBittorrent odrzucił operację {label} (HTTP {exc.code})",
+            502,
+            operation=label,
+            upstreamStatus=exc.code,
+        ) from exc
+    _require_success(status, label)
+    return status
 
 
 def _safe_torrent_folder_name(name, fallback):
@@ -326,12 +343,13 @@ def start_torrent(torrent_hash, selected):
 
     opener = qb_client()
 
-    qb_post(
+    _qb_step(
         opener,
         "/api/v2/torrents/stop",
         {
             "hashes": torrent_hash,
         },
+        "zatrzymanie na czas konfiguracji",
     )
 
     torrents = qb_get(
@@ -373,17 +391,14 @@ def start_torrent(torrent_hash, selected):
 
     ensure_nas_directory(torrent_folder)
 
-    status = qb_post(
+    _qb_step(
         opener,
         "/api/v2/torrents/setLocation",
         {
             "hashes": torrent_hash,
             "location": torrent_folder,
         },
-    )
-    _require_success(
-        status,
-        "setLocation",
+        "ustawienie katalogu docelowego",
     )
 
     location_ok = False
@@ -464,7 +479,7 @@ def start_torrent(torrent_hash, selected):
     )
 
     if unwanted_indexes:
-        qb_post(
+        _qb_step(
             opener,
             "/api/v2/torrents/filePrio",
             {
@@ -477,33 +492,31 @@ def start_torrent(torrent_hash, selected):
                 ),
                 "priority": "0",
             },
+            "pominięcie niezaznaczonych plików",
         )
 
-    qb_post(
-        opener,
-        "/api/v2/torrents/filePrio",
-        {
-            "hash": torrent_hash,
-            "id": "|".join(
-                str(index)
-                for index in sorted(
-                    selected_indexes
-                )
-            ),
-            "priority": "1",
-        },
-    )
+    # Gdy zaznaczono wszystkie pliki, priorytety ustawione przez qB
+    # są już prawidłowe. filePrio bywa odrzucane dla torrentów
+    # jednoplikowych i nie jest wtedy potrzebne.
+    if unwanted_indexes:
+        _qb_step(
+            opener,
+            "/api/v2/torrents/filePrio",
+            {
+                "hash": torrent_hash,
+                "id": "|".join(str(index) for index in sorted(selected_indexes)),
+                "priority": "1",
+            },
+            "ustawienie priorytetu wybranych plików",
+        )
 
-    status = qb_post(
+    _qb_step(
         opener,
         "/api/v2/torrents/start",
         {
             "hashes": torrent_hash,
         },
-    )
-    _require_success(
-        status,
-        "start",
+        "wznowienie pobierania",
     )
 
     return {
@@ -515,3 +528,23 @@ def start_torrent(torrent_hash, selected):
         "selected": len(selected_indexes),
         "skipped": len(unwanted_indexes),
     }
+
+
+def control_torrent(torrent_hash, action):
+    """Wstrzymaj/wznów albo usuń zadanie z kolejki bez kasowania plików."""
+    value = str(torrent_hash or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value):
+        raise QBitTorrentError("Nieprawidłowy identyfikator torrenta", 400)
+    if action not in ("pause", "resume", "cancel"):
+        raise QBitTorrentError("Nieprawidłowa operacja torrenta", 400)
+    opener = qb_client()
+    torrents = qb_get(opener, "/api/v2/torrents/info?hashes=" + value) or []
+    if not any(str(t.get("hash", "")).lower() == value for t in torrents):
+        raise QBitTorrentError("Nie znaleziono torrenta", 404)
+    path = {"pause": "/api/v2/torrents/stop", "resume": "/api/v2/torrents/start", "cancel": "/api/v2/torrents/delete"}[action]
+    fields = {"hashes": value}
+    if action == "cancel":
+        fields["deleteFiles"] = "false"
+    label = {"pause": "wstrzymanie pobierania", "resume": "wznowienie pobierania", "cancel": "usunięcie zadania bez kasowania plików"}[action]
+    _qb_step(opener, path, fields, label)
+    return {"ok": True, "hash": value, "action": action, "filesPreserved": action == "cancel"}

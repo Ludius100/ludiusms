@@ -1,5 +1,3 @@
-[Reading 155 lines from start (total: 155 lines, 0 remaining)]
-
 import json
 import sys
 import tempfile
@@ -155,5 +153,3 @@ class JobTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

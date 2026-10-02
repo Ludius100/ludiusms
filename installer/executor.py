@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import grp
+import json
 import os
 import pwd
 import secrets
@@ -9,7 +10,7 @@ from pathlib import Path
 
 from frontend_prepare import prepare_custom_js
 from host_ops import HostOperationError, HostOps
-from renderer import render_bundle
+from renderer import render_bundle, render_storage_guard
 from service_bootstrap import (
     ServiceBootstrapError,
     extract_qbittorrent_temp_password,
@@ -1106,6 +1107,14 @@ def _lms_compose(action, plan, runner):
                 action_id=action["id"],
                 mode=0o644,
             )
+        # Profil powstaje dopiero podczas instalacji. Imię nie trafia
+        # do źródeł, publicznej paczki ani repozytorium.
+        runner.write_text(
+            INSTALL_ROOT / "homepage" / "assets" / "lms-profile.json",
+            json.dumps({"displayName": plan["config"].get("display_name", "")}, ensure_ascii=False) + "\n",
+            action_id=action["id"],
+            mode=0o644,
+        )
     else:
         runner.events.append({
             "action_id": action["id"],
@@ -1122,19 +1131,59 @@ def _lms_compose(action, plan, runner):
     )
 
 
+def _verify_storage_mount(plan):
+    """Nie uruchamiaj Docker na pustym katalogu pod odmontowanym NAS."""
+    storage = plan["config"]["storage"]
+    mountpoint = str(storage["mountpoint"])
+    disk = str(plan["config"]["disk"])
+    mounted = _output(["findmnt", "--mountpoint", mountpoint, "-n", "-o", "SOURCE"])
+    if not mounted:
+        raise ExecutionError(
+            f"Magazyn LMS nie jest zamontowany w {mountpoint}; blokuję uruchomienie kontenerów."
+        )
+    # /dev/sdb i /dev/disk/by-uuid/... mogą wskazywać to samo urządzenie.
+    try:
+        if not os.path.samefile(mounted, disk):
+            raise ExecutionError(
+                f"Pod {mountpoint} znajduje się inny dysk niż wybrany magazyn LMS."
+            )
+    except OSError as exc:
+        raise ExecutionError("Nie udało się zweryfikować urządzenia magazynu LMS.") from exc
+    media_root = str(storage["media_root"])
+    if not Path(media_root).is_dir():
+        raise ExecutionError("Brak katalogu danych LMS na zamontowanym dysku.")
+
+
 def _lms_start(action, plan, runner):
     start = len(runner.events)
+    if runner.enabled:
+        _verify_storage_mount(plan)
+    # Na VM mogły przetrwać stare kontenery ze starym widokiem /nas.
+    # Odtworzenie podłącza je do aktualnego magazynu bez usuwania wolumenów.
     runner.run(
         [
             "docker", "compose",
             "--project-directory", str(INSTALL_ROOT),
             "--env-file", str(INSTALL_ROOT / ".env"),
             "-f", str(INSTALL_ROOT / "compose.yaml"),
-            "up", "-d", "--build",
+            "up", "-d", "--build", "--force-recreate",
         ],
         action_id=action["id"],
         timeout=1800,
     )
+    if runner.enabled and str(plan["config"]["storage"]["mountpoint"]) != "/":
+        unit = render_storage_guard(plan)
+        runner.write_text(
+            "/etc/systemd/system/lms-storage-guard.service",
+            unit,
+            action_id=action["id"],
+            mode=0o644,
+        )
+        runner.run(["systemctl", "daemon-reload"], action_id=action["id"])
+        runner.run(
+            ["systemctl", "enable", "lms-storage-guard.service"],
+            action_id=action["id"],
+        )
     return _action_result(action, runner, start)
 
 
@@ -1173,6 +1222,37 @@ def _lms_health(action, plan, runner):
                 "container": container,
             })
 
+    # Docker inspect może wskazywać poprawny bind mount, choć proces widzi
+    # pusty katalog sprzed montowania. Sprawdzamy realne biblioteki w środku.
+    paths = next((a.get("details", {}).get("paths", [])
+                  for a in plan.get("actions", [])
+                  if a.get("id") == "libraries.create"), [])
+    uid, gid = _service_identity(runner.enabled)
+    checks = [("lms-api", "/nas")]
+    if services.get("qbittorrent") == "install":
+        checks.append(("lms-qbittorrent", "/nas"))
+    if services.get("jellyfin") == "install":
+        checks.append(("lms-jellyfin", "/media"))
+    for container, root in checks:
+        for relative in paths:
+            location = f"{root}/{relative}"
+            if runner.enabled:
+                for permission in (("-d", "-w") if container != "lms-jellyfin" else ("-d",)):
+                    if not _command_ok([
+                        "docker", "exec", "--user", f"{uid}:{gid}",
+                        container, "test", permission, location,
+                    ]):
+                        problem = "nie widzi" if permission == "-d" else "nie może zapisywać w"
+                        raise ExecutionError(
+                            f"{container} {problem} biblioteki {location}. "
+                            "Sprawdź montowanie NAS i uprawnienia katalogów."
+                        )
+            else:
+                runner.events.append({
+                    "action_id": action["id"], "kind": "library-visibility",
+                    "status": "planned", "container": container,
+                    "path": location,
+                })
     return _action_result(
         action,
         runner,
@@ -1304,5 +1384,3 @@ def _jellyfin_opensubtitles(action, plan, runner):
         status="done",
         restarted="lms-jellyfin",
     )
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

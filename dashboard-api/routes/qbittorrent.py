@@ -6,6 +6,7 @@ from services.qbittorrent_workflows import (
     get_qbittorrent_status,
     prepare_magnet,
     start_torrent,
+    control_torrent,
 )
 
 
@@ -105,3 +106,17 @@ def qbittorrent_start():
             "ok": False,
             "error": "Nie udało się uruchomić torrenta"
         }), 503
+
+
+@qbittorrent_bp.route("/control", methods=["POST", "OPTIONS"])
+def qbittorrent_control():
+    if request.method == "OPTIONS":
+        return "", 204
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(control_torrent(data.get("hash"), data.get("action")))
+    except QBitTorrentError as error:
+        return jsonify(error.payload), error.status_code
+    except Exception as error:
+        print("qBittorrent control error:", type(error).__name__, error, flush=True)
+        return jsonify({"ok": False, "error": "Nie udało się wykonać operacji qBittorrent"}), 503

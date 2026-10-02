@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 
+from services.media_identification import IdentificationError, search_media
 from services.media_library import (
     MediaLibraryError,
     get_last_episode,
@@ -25,6 +26,19 @@ media_bp = Blueprint(
     __name__,
     url_prefix="/api/media",
 )
+
+
+@media_bp.route("/identify", methods=["GET", "OPTIONS"])
+def media_identify():
+    if request.method == "OPTIONS":
+        return "", 204
+    try:
+        return jsonify(search_media(
+            request.args.get("title", ""),
+            request.args.get("type", ""),
+        ))
+    except IdentificationError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), exc.status_code
 
 
 @media_bp.route("/titles", methods=["GET", "OPTIONS"])

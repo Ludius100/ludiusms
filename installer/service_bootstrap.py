@@ -375,8 +375,27 @@ def jellyfin_update_library_preferences(
     """Preserve Jellyfin defaults while applying LMS language preferences."""
     updated = dict(options or {})
     updated["PreferredMetadataLanguage"] = metadata_language
+    updated["MetadataCountryCode"] = {
+        "pl": "PL", "en": "US", "de": "DE", "fr": "FR",
+        "es": "ES", "it": "IT", "ja": "JP",
+    }.get(metadata_language, "PL")
     updated["SubtitleDownloadLanguages"] = [subtitle_language]
     updated["SaveSubtitlesWithMedia"] = True
+    # Reorder an existing TMDB provider, without inventing provider names or
+    # enabling a plugin that this particular Jellyfin instance does not have.
+    type_options = []
+    for item in updated.get("TypeOptions") or []:
+        option = dict(item)
+        for key in ("MetadataFetcherOrder", "ImageFetcherOrder"):
+            order = option.get(key)
+            if isinstance(order, list):
+                tmdb = [name for name in order if isinstance(name, str)
+                        and name.lower().replace(" ", "") in
+                        ("themoviedb", "tmdb", "themoviedbimages")]
+                option[key] = tmdb + [name for name in order if name not in tmdb]
+        type_options.append(option)
+    if type_options:
+        updated["TypeOptions"] = type_options
     _jellyfin_json(
         base_url,
         "/Library/VirtualFolders/LibraryOptions",
@@ -385,5 +404,3 @@ def jellyfin_update_library_preferences(
         method="POST",
     )
     return True
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

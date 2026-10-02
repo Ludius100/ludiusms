@@ -13,9 +13,11 @@ async function apiFetch(path, options = {}) {
 let hostData = null;
 let currentPlan = null;
 let installJobId = null;
+let installJobStatus = null;
 let installPollTimer = null;
 let step = 1;
 let selectedDisk = null;
+let displayName = "";
 const selectedLibraries = new Set(["movies", "series", "anime"]);
 const servicePlans = {
   tailscale: null,
@@ -108,6 +110,8 @@ function renderServer(data) {
       `${disks.length} wykryte`,
       disks.map((disk) => `${disk.path} • ${fmtBytes(disk.size_bytes)}`).join(" | ")
     );
+  $("#serverCards").insertAdjacentHTML("afterbegin", `<div class="setup-name-field"><label for="setupDisplayName">Jak masz na imię? <span>(opcjonalnie)</span></label><input id="setupDisplayName" type="text" maxlength="40" autocomplete="given-name" placeholder="Np. Alex" value="${esc(displayName)}"><small>To imię pojawi się w powitaniu na Twoim dashboardzie.</small></div>`);
+  $("#setupDisplayName").addEventListener("input", event => { displayName = event.target.value; });
   renderChecks(data);
   $("#hint").textContent = oracle.detected
     ? "Oracle Cloud wykryty. Możemy przejść do wyboru dysku."
@@ -383,6 +387,7 @@ function summaryRow(label, value) {
 
 function buildSelectionPayload() {
   const payload = {
+    display_name: displayName.trim(),
     disk: selectedDisk,
     libraries: Array.from(selectedLibraries),
     services: {...servicePlans},
@@ -434,6 +439,7 @@ async function renderSummary() {
     const libraryNames = cfg.libraries.map((id) => libraryDefs.find((item) => item.id === id)?.name || id);
     $("#serverCards").innerHTML =
       '<div class="summary-overview">' +
+        summaryRow("Powitanie", cfg.display_name || "Bez imienia") +
         summaryRow("Dysk", cfg.disk) +
         summaryRow("Tryb dysku", cfg.storage.mode === "format-ext4" ? "Nowy ext4" : "Istniejący system plików") +
         summaryRow("Punkt montowania", cfg.storage.mountpoint) +
@@ -473,6 +479,7 @@ function stopInstallPolling() {
 }
 
 function renderJobProgress(job, active = false) {
+  installJobStatus = job.status;
   const actions = currentPlan?.actions || [];
   const completed = Number(job.next_action_index || 0);
   const statusNames = {
@@ -890,8 +897,13 @@ $("#nextBtn").addEventListener("click", () => {
     return;
   }
   if (step === 8) {
-    if (installJobId && $("#nextBtn").textContent.startsWith("Przejdź do dashboardu")) {
-      window.location.href = "http://127.0.0.1:3000/";
+    if (installJobId && installJobStatus === "done") {
+      const destination = new URL(window.location.href);
+      destination.port = "3000";
+      destination.pathname = "/";
+      destination.search = "";
+      destination.hash = "";
+      window.location.assign(destination.toString());
       return;
     }
     startInstallJob();
@@ -899,5 +911,3 @@ $("#nextBtn").addEventListener("click", () => {
 });
 
 scan();
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

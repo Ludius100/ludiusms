@@ -1,5 +1,3 @@
-[Reading 105 lines from start (total: 105 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import os
 from pathlib import Path
@@ -105,5 +103,3 @@ def save_existing_jellyfin_credentials(
     token = _clean_credential(token, "Token Jellyfin")
     _write_secret(token_path, token + "\n")
     return True
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

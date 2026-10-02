@@ -1,5 +1,3 @@
-[Reading 636 lines from start (total: 636 lines, 0 remaining)]
-
 #!/usr/bin/env python3
 import argparse
 import json
@@ -9,6 +7,7 @@ import secrets
 import shutil
 import subprocess
 import urllib.request
+from copy import deepcopy
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -331,7 +330,9 @@ class Handler(SimpleHTTPRequestHandler):
                 {"ok": False, "error": str(exc)},
                 status=400,
             )
-        return self.send_json({"ok": True, "plan": plan})
+        public_plan = deepcopy(plan)
+        public_plan["config"].pop("qbittorrent_password", None)
+        return self.send_json({"ok": True, "plan": public_plan})
 
     def handle_job_credentials(self, job_id):
         try:
@@ -636,5 +637,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

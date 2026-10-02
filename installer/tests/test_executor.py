@@ -1,13 +1,12 @@
-[Reading 96 lines from start (total: 96 lines, 0 remaining)]
-
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from executor import ExecutionError, execute_plan
+from executor import ExecutionError, _storage_format, _verify_storage_mount, _lms_health, _lms_start, execute_plan
 from planner import build_plan
 
 
@@ -56,6 +55,62 @@ class ExecutorTests(unittest.TestCase):
         with self.assertRaises(ExecutionError):
             execute_plan(plan_fixture(), enabled=True)
 
+    def test_format_refuses_changed_disk_state(self):
+        for kind, expected in (
+            ("partition", "partycje"),
+            ("filesystem", "system plików"),
+            ("mounted", "zamontowane"),
+        ):
+            with self.subTest(kind=kind):
+                runner = Mock(enabled=True, events=[])
+                def output(argv, timeout=10):
+                    key = tuple(argv[1:4])
+                    if key == ("-dn", "-o", "TYPE"):
+                        return "disk"
+                    if key == ("-nr", "-o", "TYPE"):
+                        return "disk" + chr(10) + "part" if kind == "partition" else "disk"
+                    if key == ("-dn", "-o", "FSTYPE"):
+                        return "ext4" if kind == "filesystem" else ""
+                    if key == ("-nr", "-o", "MOUNTPOINTS"):
+                        return "/srv/data" if kind == "mounted" else ""
+                    return ""
+                with patch("executor._output", side_effect=output):
+                    with self.assertRaisesRegex(ExecutionError, expected):
+                        _storage_format(
+                            {"id": "storage.format", "details": {"disk": "/dev/sdb"}},
+                            {}, runner,
+                        )
+                runner.run.assert_not_called()
+
+    def test_start_refuses_unmounted_disk_before_starting_docker(self):
+        plan = {"config": {"disk": "/dev/sdb", "storage": {
+            "mountpoint": "/srv/lms-media", "media_root": "/srv/lms-media"}}}
+        runner = Mock(enabled=True, events=[])
+        with patch("executor._output", return_value=""):
+            with self.assertRaisesRegex(ExecutionError, "nie jest zamontowany"):
+                _lms_start({"id": "lms.start"}, plan, runner)
+        runner.run.assert_not_called()
+
+    def test_start_refuses_other_disk_mounted_at_nas(self):
+        plan = {"config": {"disk": "/dev/sdb", "storage": {
+            "mountpoint": "/srv/lms-media", "media_root": "/srv/lms-media"}}}
+        runner = Mock(enabled=True, events=[])
+        with patch("executor._output", return_value="/dev/sda"), \
+             patch("executor.os.path.samefile", return_value=False):
+            with self.assertRaisesRegex(ExecutionError, "inny dysk"):
+                _lms_start({"id": "lms.start"}, plan, runner)
+        runner.run.assert_not_called()
+
+    def test_health_detects_stale_qbittorrent_mount(self):
+        plan = {"config": {"services": {"qbittorrent": "install", "jellyfin": "skip"}},
+                "actions": [{"id": "libraries.create", "details": {"paths": ["Filmy"]}}]}
+        runner = Mock(enabled=True, events=[])
+        with patch("executor._output", return_value="true"), \
+             patch("executor._service_identity", return_value=(999, 987)), \
+             patch("executor._command_ok", side_effect=lambda argv: argv[4] != "lms-qbittorrent"):
+            with self.assertRaisesRegex(ExecutionError, "nie widzi biblioteki"):
+                _lms_health({"id": "lms.health"}, plan, runner)
+
     def test_full_fresh_plan_can_be_previewed_end_to_end(self):
         host = {
             "docker": {"installed": False, "compose_installed": False},
@@ -96,5 +151,3 @@ class ExecutorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]

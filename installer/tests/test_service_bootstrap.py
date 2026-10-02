@@ -43,6 +43,10 @@ class FakeServicesHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/Startup/Configuration":
+            if self.state.get("startup_html_once"):
+                self.state["startup_html_once"] = False
+                return self._reply(200, b"<html>Jellyfin loading</html>",
+                                   {"Content-Type": "text/html"})
             payload = {
                 "ServerName": "",
                 "UICulture": "en-US",
@@ -161,6 +165,7 @@ class ServiceBootstrapTests(unittest.TestCase):
             "qb_user": "admin",
             "qb_password": "TEMP1234",
             "libraries": [],
+            "startup_html_once": False,
         })
     def test_extract_qbittorrent_temp_password(self):
         logs = (
@@ -217,6 +222,14 @@ class ServiceBootstrapTests(unittest.TestCase):
             ],
             "PL",
         )
+    def test_jellyfin_waits_out_transient_html_startup_response(self):
+        FakeServicesHandler.state["startup_html_once"] = True
+        token = jellyfin_bootstrap(
+            self.base, username="lmsadmin", password="JF-PASSWORD"
+        )
+        self.assertEqual(token, "JF-TOKEN")
+        self.assertFalse(FakeServicesHandler.state["startup_html_once"])
+
     def test_jellyfin_library_creation(self):
         FakeServicesHandler.state["jellyfin_user"] = "lmsadmin"
         FakeServicesHandler.state["jellyfin_password"] = "JF-PASSWORD"
@@ -244,5 +257,3 @@ class ServiceBootstrapTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-[executed on device: nas-server (67000a68-9cef-4872-b788-2a95d730eb83)]
