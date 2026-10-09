@@ -106,8 +106,8 @@ def _storage_strategy(disk):
 def _normalize_qbittorrent_password(value):
     if value in (None, ""):
         return None
-    if not isinstance(value, str) or not 10 <= len(value) <= 128:
-        raise PlanError("Hasło qBittorrent musi mieć 10–128 znaków.")
+    if not isinstance(value, str) or not 6 <= len(value) <= 128:
+        raise PlanError("Hasło qBittorrent musi mieć 6–128 znaków.")
     if not value.isascii() or any(
         ch.isspace() or ch in "\\\"'\\\\$" for ch in value
     ):
@@ -121,8 +121,8 @@ def _normalize_qbittorrent_password(value):
 def _normalize_jellyfin_password(value):
     if value in (None, ""):
         return None
-    if not isinstance(value, str) or not 10 <= len(value) <= 128:
-        raise PlanError("Hasło Jellyfin musi mieć 10–128 znaków.")
+    if not isinstance(value, str) or not 6 <= len(value) <= 128:
+        raise PlanError("Hasło Jellyfin musi mieć 6–128 znaków.")
     if not value.isascii() or any(ch.isspace() or ch in chr(34) + chr(39) + chr(92) + chr(36) for ch in value):
         raise PlanError("Hasło Jellyfin: użyj znaków ASCII bez spacji, cudzysłowów, ukośnika odwrotnego i znaku dolara.")
     return value
