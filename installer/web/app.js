@@ -228,7 +228,7 @@ function serviceActionLabel(plan) {
 function qbPasswordError() {
   if (servicePlans.qbittorrent !== "install") return "";
   if (!qbPassword && !qbPasswordConfirm) return "";
-  if (qbPassword.length < 10 || qbPassword.length > 128) return "Hasło musi mieć 10–128 znaków.";
+  if (qbPassword.length < 6 || qbPassword.length > 128) return "Hasło musi mieć 6–128 znaków.";
   if ([...qbPassword].some((ch) =>
     ch.charCodeAt(0) < 33 || ch.charCodeAt(0) > 126 ||
     ch === '"' || ch === "'" || ch.charCodeAt(0) === 92 || ch === "$"
@@ -240,7 +240,7 @@ function qbPasswordError() {
 function jellyfinPasswordError() {
   if (servicePlans.jellyfin !== "install") return "";
   if (!jellyfinPassword && !jellyfinPasswordConfirm) return "";
-  if (jellyfinPassword.length < 10 || jellyfinPassword.length > 128) return "Hasło musi mieć 10–128 znaków.";
+  if (jellyfinPassword.length < 6 || jellyfinPassword.length > 128) return "Hasło musi mieć 6–128 znaków.";
   if ([...jellyfinPassword].some((ch) =>
     ch.charCodeAt(0) < 33 || ch.charCodeAt(0) > 126 ||
     ch === '"' || ch === "'" || ch.charCodeAt(0) === 92 || ch === "$"
@@ -274,7 +274,7 @@ function renderServices(data) {
             <label><span>Nowe hasło</span><input id="qbPassword" type="password" autocomplete="new-password" value="${esc(qbPassword)}"></label>
             <label><span>Powtórz hasło</span><input id="qbPasswordConfirm" type="password" autocomplete="new-password" value="${esc(qbPasswordConfirm)}"></label>
           </div>
-          <small id="qbPasswordHelp">Własne hasło: 10–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
+          <small id="qbPasswordHelp">Własne hasło: 6–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
         </div>`
       : "";
     const jellyfinCredentials = service.id === "jellyfin" && current === "install"
@@ -285,7 +285,7 @@ function renderServices(data) {
             <label><span>Nowe hasło</span><input id="jellyfinPassword" type="password" autocomplete="new-password" value="${esc(jellyfinPassword)}"></label>
             <label><span>Powtórz hasło</span><input id="jellyfinPasswordConfirm" type="password" autocomplete="new-password" value="${esc(jellyfinPasswordConfirm)}"></label>
           </div>
-          <small id="jellyfinPasswordHelp">Własne hasło: 10–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
+          <small id="jellyfinPasswordHelp">Własne hasło: 6–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
         </div>`
       : "";
 
