@@ -999,7 +999,7 @@
         const value = Number(bytes) || 0;
 
 
-[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]        if (value < 1024) {
+        if (value < 1024) {
             return `${value} B`;
         }
 
@@ -2000,7 +2000,7 @@
 
                     <button
 
-[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]                        id="nas-file-picker-close"
+                        id="nas-file-picker-close"
                         class="nas-file-picker-close"
                         type="button"
                         title="Zamknij"
@@ -3001,7 +3001,7 @@
         }
     }
 
-[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]
+
     async function sendChunk(job, blob, offset) {
         const r=await fetch(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}/chunk`,{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Upload-Offset":String(offset)},body:blob});
         const d=await r.json().catch(()=>({}));
@@ -3740,4 +3740,3 @@
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(boot,900));else setTimeout(boot,900);
 })();
 
-[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]
