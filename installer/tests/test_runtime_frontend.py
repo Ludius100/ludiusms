@@ -51,4 +51,21 @@ class RuntimeFrontendTests(unittest.TestCase):
             self.assertEqual(config.stat().st_mode & 0o777, 0o750)
             self.assertEqual((install / "homepage" / "assets" / "lms-profile.json").read_text().strip(), '{"displayName": "Ala"}')
 
+class BundlePermissionsTests(unittest.TestCase):
+    def test_installer_shell_entrypoints_are_executable_in_bundle(self):
+        import tempfile
+        from build_bundle import _copy_installer
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            destination = Path(tmp) / "destination"
+            source.mkdir()
+            for name in ("install.sh", "check-host.sh"):
+                script = source / name
+                script.write_text("#!/bin/sh\n", encoding="utf-8")
+                script.chmod(0o644)
+            _copy_installer(source, destination)
+            for name in ("install.sh", "check-host.sh"):
+                self.assertTrue((destination / name).stat().st_mode & 0o111)
+
+
 if __name__ == "__main__": unittest.main()
