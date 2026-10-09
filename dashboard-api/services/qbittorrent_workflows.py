@@ -1,10 +1,13 @@
 import time
+import os
 import re
-import urllib.error
+import json
 import urllib.parse
+import urllib.request
 
 from config import QBITTORRENT_LIBRARIES
 from services.nas import ensure_nas_directory
+from services.jellyfin import jellyfin_request
 from services.qbittorrent import (
     format_qb_file,
     format_torrent,
@@ -53,21 +56,6 @@ def _require_success(status, action):
         )
 
 
-def _qb_step(opener, endpoint, payload, label):
-    """Zwróć czytelny etap awarii bez ujawniania sekretów ani URL magnetu."""
-    try:
-        status = qb_post(opener, endpoint, payload)
-    except urllib.error.HTTPError as exc:
-        raise QBitTorrentError(
-            f"qBittorrent odrzucił operację {label} (HTTP {exc.code})",
-            502,
-            operation=label,
-            upstreamStatus=exc.code,
-        ) from exc
-    _require_success(status, label)
-    return status
-
-
 def _safe_torrent_folder_name(name, fallback):
     value = str(name or "").strip()
 
@@ -76,6 +64,66 @@ def _safe_torrent_folder_name(name, fallback):
 
     value = value.strip(" .")
     return value or fallback
+
+
+
+
+def get_qbittorrent_titles(library_id):
+    library_id = str(library_id or "").strip()
+    library = QBITTORRENT_LIBRARIES.get(library_id)
+    if not library:
+        raise QBitTorrentError("Nieprawidłowa biblioteka", 400)
+    root = os.path.realpath(library["path"])
+    titles = []
+    if os.path.isdir(root):
+        with os.scandir(root) as entries:
+            for entry in entries:
+                if entry.name.startswith("."):
+                    continue
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        titles.append(entry.name)
+                except OSError:
+                    pass
+    titles.sort(key=str.casefold)
+    return {"ok": True, "library": library_id, "libraryName": library["name"], "titles": titles}
+
+
+def search_qbittorrent_metadata(library_id, query):
+    library_id = str(library_id or "").strip()
+    query = str(query or "").strip()
+    if library_id not in ("movies", "animeMovies", "series", "anime"):
+        raise QBitTorrentError("Ta biblioteka nie obsługuje metadanych", 400)
+    if len(query) < 2:
+        raise QBitTorrentError("Wpisz co najmniej 2 znaki tytułu", 400)
+    media_type = "Movie" if library_id in ("movies", "animeMovies") else "Series"
+    req = jellyfin_request("/Items/RemoteSearch/" + media_type)
+    req.method = "POST"
+    req.add_header("Content-Type", "application/json")
+    req.data = json.dumps({"Name": query, "SearchInfo": {"Name": query}}).encode("utf-8")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            raw = json.loads(response.read())
+    except Exception as exc:
+        raise QBitTorrentError("Nie udało się wyszukać metadanych", 503) from exc
+    results = []
+    seen = set()
+    for item in raw if isinstance(raw, list) else []:
+        providers = item.get("ProviderIds") or {}
+        imdb = str(providers.get("Imdb") or "").strip()
+        if not re.fullmatch(r"tt\d{5,12}", imdb, re.I):
+            continue
+        key = imdb.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        name = str(item.get("Name") or query).strip()
+        year = item.get("ProductionYear")
+        folder = f"{name} ({year}) [imdbid-{imdb}]" if year else f"{name} [imdbid-{imdb}]"
+        results.append({"name": name, "year": year, "imdb": imdb, "folder": folder})
+        if len(results) >= 12:
+            break
+    return {"ok": True, "results": results, "mediaType": media_type}
 
 
 def get_qbittorrent_libraries():
@@ -193,22 +241,27 @@ def prepare_magnet(magnet, library_id="downloads"):
         qb_find_torrent_by_magnet(opener, magnet)
     )
 
-    status = qb_post(
-        opener,
-        "/api/v2/torrents/add",
-        {
-            "urls": magnet,
-            "savepath": library["path"],
-            "root_folder": "true",
-            "paused": "true",
-            "ratioLimit": "0",
-            "seedingTimeLimit": "0",
-        },
+    already_present = bool(
+        expected_hash and expected_hash in before_hashes
     )
-    _require_success(
-        status,
-        "qBittorrent add",
-    )
+
+    if not already_present:
+        status = qb_post(
+            opener,
+            "/api/v2/torrents/add",
+            {
+                "urls": magnet,
+                "savepath": library["path"],
+                "root_folder": "true",
+                "paused": "true",
+                "ratioLimit": "0",
+                "seedingTimeLimit": "0",
+            },
+        )
+        _require_success(
+            status,
+            "qBittorrent add",
+        )
 
     torrent_hash = None
     torrent_name = None
@@ -324,7 +377,7 @@ def prepare_magnet(magnet, library_id="downloads"):
     }
 
 
-def start_torrent(torrent_hash, selected):
+def start_torrent(torrent_hash, selected, target_folder=None):
     torrent_hash = str(
         torrent_hash or ""
     ).strip().lower()
@@ -343,13 +396,12 @@ def start_torrent(torrent_hash, selected):
 
     opener = qb_client()
 
-    _qb_step(
+    qb_post(
         opener,
         "/api/v2/torrents/stop",
         {
             "hashes": torrent_hash,
         },
-        "zatrzymanie na czas konfiguracji",
     )
 
     torrents = qb_get(
@@ -381,24 +433,29 @@ def start_torrent(torrent_hash, selected):
             500,
         )
 
-    safe_name = _safe_torrent_folder_name(
-        torrent_name,
-        torrent_hash,
-    )
-    torrent_folder = (
-        f"{save_path}/{safe_name}"
-    )
+    requested_folder = str(target_folder or "").strip()
+    if requested_folder:
+        requested_folder = requested_folder.replace("\\", "/").strip("/")
+        if "/" in requested_folder or requested_folder in (".", ".."):
+            raise QBitTorrentError("Nieprawidłowy folder docelowy", 400)
+        safe_name = _safe_torrent_folder_name(requested_folder, torrent_hash)
+    else:
+        safe_name = _safe_torrent_folder_name(torrent_name, torrent_hash)
+    torrent_folder = f"{save_path}/{safe_name}"
 
     ensure_nas_directory(torrent_folder)
 
-    _qb_step(
+    status = qb_post(
         opener,
         "/api/v2/torrents/setLocation",
         {
             "hashes": torrent_hash,
             "location": torrent_folder,
         },
-        "ustawienie katalogu docelowego",
+    )
+    _require_success(
+        status,
+        "setLocation",
     )
 
     location_ok = False
@@ -479,7 +536,7 @@ def start_torrent(torrent_hash, selected):
     )
 
     if unwanted_indexes:
-        _qb_step(
+        qb_post(
             opener,
             "/api/v2/torrents/filePrio",
             {
@@ -492,31 +549,33 @@ def start_torrent(torrent_hash, selected):
                 ),
                 "priority": "0",
             },
-            "pominięcie niezaznaczonych plików",
         )
 
-    # Gdy zaznaczono wszystkie pliki, priorytety ustawione przez qB
-    # są już prawidłowe. filePrio bywa odrzucane dla torrentów
-    # jednoplikowych i nie jest wtedy potrzebne.
-    if unwanted_indexes:
-        _qb_step(
-            opener,
-            "/api/v2/torrents/filePrio",
-            {
-                "hash": torrent_hash,
-                "id": "|".join(str(index) for index in sorted(selected_indexes)),
-                "priority": "1",
-            },
-            "ustawienie priorytetu wybranych plików",
-        )
+    qb_post(
+        opener,
+        "/api/v2/torrents/filePrio",
+        {
+            "hash": torrent_hash,
+            "id": "|".join(
+                str(index)
+                for index in sorted(
+                    selected_indexes
+                )
+            ),
+            "priority": "1",
+        },
+    )
 
-    _qb_step(
+    status = qb_post(
         opener,
         "/api/v2/torrents/start",
         {
             "hashes": torrent_hash,
         },
-        "wznowienie pobierania",
+    )
+    _require_success(
+        status,
+        "start",
     )
 
     return {
@@ -529,22 +588,23 @@ def start_torrent(torrent_hash, selected):
         "skipped": len(unwanted_indexes),
     }
 
-
 def control_torrent(torrent_hash, action):
-    """Wstrzymaj/wznów albo usuń zadanie z kolejki bez kasowania plików."""
-    value = str(torrent_hash or "").strip().lower()
-    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value):
-        raise QBitTorrentError("Nieprawidłowy identyfikator torrenta", 400)
-    if action not in ("pause", "resume", "cancel"):
-        raise QBitTorrentError("Nieprawidłowa operacja torrenta", 400)
+    torrent_hash = str(torrent_hash or "").strip().lower()
+    if not torrent_hash:
+        raise QBitTorrentError("Brak hash torrenta", 400)
     opener = qb_client()
-    torrents = qb_get(opener, "/api/v2/torrents/info?hashes=" + value) or []
-    if not any(str(t.get("hash", "")).lower() == value for t in torrents):
+    rows = qb_get(opener, "/api/v2/torrents/info?hashes=" + urllib.parse.quote(torrent_hash)) or []
+    if not rows:
         raise QBitTorrentError("Nie znaleziono torrenta", 404)
-    path = {"pause": "/api/v2/torrents/stop", "resume": "/api/v2/torrents/start", "cancel": "/api/v2/torrents/delete"}[action]
-    fields = {"hashes": value}
-    if action == "cancel":
-        fields["deleteFiles"] = "false"
-    label = {"pause": "wstrzymanie pobierania", "resume": "wznowienie pobierania", "cancel": "usunięcie zadania bez kasowania plików"}[action]
-    _qb_step(opener, path, fields, label)
-    return {"ok": True, "hash": value, "action": action, "filesPreserved": action == "cancel"}
+    if action == "pause":
+        status = qb_post(opener, "/api/v2/torrents/stop", {"hashes": torrent_hash})
+        _require_success(status, "stop")
+    elif action == "resume":
+        status = qb_post(opener, "/api/v2/torrents/start", {"hashes": torrent_hash})
+        _require_success(status, "start")
+    elif action == "delete":
+        status = qb_post(opener, "/api/v2/torrents/delete", {"hashes": torrent_hash, "deleteFiles": "true"})
+        _require_success(status, "delete")
+    else:
+        raise QBitTorrentError("Nieprawidłowa akcja", 400)
+    return {"ok": True, "hash": torrent_hash, "action": action}
