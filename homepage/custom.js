@@ -998,7 +998,8 @@
     function formatBytes(bytes) {
         const value = Number(bytes) || 0;
 
-        if (value < 1024) {
+
+[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]        if (value < 1024) {
             return `${value} B`;
         }
 
@@ -1998,7 +1999,8 @@
                     </div>
 
                     <button
-                        id="nas-file-picker-close"
+
+[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]                        id="nas-file-picker-close"
                         class="nas-file-picker-close"
                         type="button"
                         title="Zamknij"
@@ -2986,6 +2988,7 @@
     }
     function renderTransferPanel() {
         const all=[...(transfer.active?[transfer.active]:[]),...transfer.jobs.filter(x=>x.status==="queued")];
+        window.dispatchEvent(new CustomEvent("nas:local-transfer-update",{detail:{jobs:all.map(job=>({id:job.id,name:job.targetName,status:job.status,sent:Number(job.sent||0),size:Number(job.file?.size||0),speed:Number(job.speed||0),mediaType:job.mediaType}))}}));
         for(const type of ["movie","series"]){
             const box=document.querySelector(type==="movie"?"#nas-movie-transfers":"#nas-series-transfers");
             if(!box)continue;
@@ -2998,6 +3001,7 @@
         }
     }
 
+[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]
     async function sendChunk(job, blob, offset) {
         const r=await fetch(`${API}/api/media/upload/${encodeURIComponent(job.uploadId)}/chunk`,{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Upload-Offset":String(offset)},body:blob});
         const d=await r.json().catch(()=>({}));
@@ -3327,7 +3331,7 @@
       '<section class="lms1-hero">' +
         '<img class="lms1-hero-image" src="/lms-assets/lms-hero.webp" alt="">' +
         '<div class="lms1-hero-fade"></div>' +
-        '<div class="lms1-hero-copy"><span id="lms1-greeting">Dobry wieczór,</span><h1>Remigiusz<i>_</i></h1><p><b></b><span id="lms1-global-status">Sprawdzanie systemu…</span></p></div>' +
+        '<div class="lms1-hero-copy"><span id="lms1-greeting">Dobry wieczór,</span><h1><span id="lms1-profile-name">Remigiusz</span><i>_</i></h1><p><b></b><span id="lms1-global-status">Sprawdzanie systemu…</span></p></div>' +
         '<div class="lms1-clock"><small id="lms1-date">—</small><strong id="lms1-time">--:--</strong><blockquote>„Twoja prywatna<br>biblioteka, zawsze<br>pod ręką.”<em>LUDIUS MS</em></blockquote></div>' +
       '</section>' +
       '<section class="lms1-metrics">' +
@@ -3701,6 +3705,16 @@
   else init();
 })();
 
+
+/* LMS PROFILE — installer display name */
+(function(){
+ async function applyProfile(){
+  try{const r=await fetch("/lms-assets/lms-profile.json?_="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json(),name=String(j.displayName||"").trim();if(!name)return;const el=document.querySelector("#lms1-profile-name");if(el)el.textContent=name;}catch(_){ }
+ }
+ const boot=()=>{applyProfile();setTimeout(applyProfile,700)};
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+})();
+
 /* LMS GLOBAL TRANSFER MANAGER — 2026-10-09 */
 (function(){
  const API="http://100.127.67.28:8090", E=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -3712,13 +3726,18 @@
  function boot(){ensure();poll();setInterval(poll,2000);window.addEventListener("nas:qbt-started",()=>setTimeout(poll,300))}
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(boot,500));else setTimeout(boot,500);
 })();
-/* LMS HOME TRANSFERS V2 — controls rendered atomically */
+/* LMS HOME TRANSFERS V3 — qBittorrent + local uploads */
 (function(){
  const A="http://100.127.67.28:8090";
+ let local=[];
  const f=n=>{n=Number(n||0);if(!n)return"0 B";let u=["B","KB","MB","GB"],i=Math.min(3,Math.floor(Math.log(n)/Math.log(1024)));return(n/Math.pow(1024,i)).toFixed(i<2?0:1)+" "+u[i]};
  const e=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  async function act(hash,action){if(action==="delete"&&!confirm("Usunąć torrent razem z pobranymi plikami?"))return;try{let r=await fetch(A+"/api/qbittorrent/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({hash,action})}),j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||"Błąd");setTimeout(go,150)}catch(x){alert(x.message)}}
- async function go(){let b=document.querySelector("#lms1-home-transfers"),s=document.querySelector("#lms1-transfer-summary");if(!b)return;try{let r=await fetch(A+"/api/qbittorrent",{cache:"no-store"}),q=await r.json(),t=(q.torrents||[]).filter(x=>Number(x.progress||0)<100);s.textContent=t.length?t.length+" aktywne · ↓ "+f(q.downloadSpeed)+"/s":"Brak aktywnych";b.innerHTML=t.length?t.map(x=>{let p=Math.max(0,Math.min(100,Number(x.progress||0))),st=String(x.state||"").toLowerCase(),stopped=st.includes("stopped")||st.includes("paused");return '<div class="lms1-transfer-home-row"><div class="lms1-transfer-home-top"><strong>'+e(x.name)+'</strong><b>'+p.toFixed(1)+'%</b></div><div class="lms1-transfer-home-bar"><i style="width:'+p+'%"></i></div><div class="lms1-transfer-home-meta"><span>↓ '+f(x.downloadSpeed)+'/s · '+f(x.downloaded)+' / '+f(x.size)+'</span><span>'+e(x.state)+'</span></div><div class="lms-transfer-actions"><button type="button" data-h="'+e(x.hash)+'" data-a="'+(stopped?"resume":"pause")+'">'+(stopped?"▶ Wznów":"Ⅱ Pauza")+'</button><button type="button" class="danger" data-h="'+e(x.hash)+'" data-a="delete">Usuń z plikami</button></div></div>'}).join(""):'<div class="lms1-transfer-home-empty">Brak aktywnych transferów</div>';b.querySelectorAll("[data-a]").forEach(x=>x.onclick=()=>act(x.dataset.h,x.dataset.a))}catch(_){b.innerHTML='<div class="lms1-transfer-home-empty">Nie udało się pobrać transferów</div>'}}
- function boot(){go();setInterval(go,2000)}
+ function localRow(x){let p=x.size?Math.max(0,Math.min(100,x.sent/x.size*100)):0,st=x.status==="queued"?"W kolejce":"Upload lokalny";return '<div class="lms1-transfer-home-row" data-local="1"><div class="lms1-transfer-home-top"><strong>↑ '+e(x.name||"Plik")+'</strong><b>'+p.toFixed(1)+'%</b></div><div class="lms1-transfer-home-bar"><i style="width:'+p+'%"></i></div><div class="lms1-transfer-home-meta"><span>↑ '+f(x.speed)+'/s · '+f(x.sent)+' / '+f(x.size)+'</span><span>'+st+'</span></div></div>'}
+ function torrentRow(x){let p=Math.max(0,Math.min(100,Number(x.progress||0))),st=String(x.state||"").toLowerCase(),stopped=st.includes("stopped")||st.includes("paused");return '<div class="lms1-transfer-home-row"><div class="lms1-transfer-home-top"><strong>'+e(x.name)+'</strong><b>'+p.toFixed(1)+'%</b></div><div class="lms1-transfer-home-bar"><i style="width:'+p+'%"></i></div><div class="lms1-transfer-home-meta"><span>↓ '+f(x.downloadSpeed)+'/s · '+f(x.downloaded)+' / '+f(x.size)+'</span><span>'+e(x.state)+'</span></div><div class="lms-transfer-actions"><button type="button" data-h="'+e(x.hash)+'" data-a="'+(stopped?"resume":"pause")+'">'+(stopped?"▶ Wznów":"Ⅱ Pauza")+'</button><button type="button" class="danger" data-h="'+e(x.hash)+'" data-a="delete">Usuń z plikami</button></div></div>'}
+ async function go(){let b=document.querySelector("#lms1-home-transfers"),s=document.querySelector("#lms1-transfer-summary");if(!b)return;try{let r=await fetch(A+"/api/qbittorrent",{cache:"no-store"}),q=await r.json(),t=(q.torrents||[]).filter(x=>Number(x.progress||0)<100),rows=[...local.map(localRow),...t.map(torrentRow)],n=local.length+t.length;s.textContent=n?n+" aktywne"+(t.length?" · ↓ "+f(q.downloadSpeed)+"/s":""):"Brak aktywnych";b.innerHTML=rows.length?rows.join(""):'<div class="lms1-transfer-home-empty">Brak aktywnych transferów</div>';b.querySelectorAll("[data-a]").forEach(x=>x.onclick=()=>act(x.dataset.h,x.dataset.a))}catch(_){if(local.length){b.innerHTML=local.map(localRow).join("");s.textContent=local.length+" aktywne"}else b.innerHTML='<div class="lms1-transfer-home-empty">Nie udało się pobrać transferów</div>'}}
+ function boot(){go();setInterval(go,2000);window.addEventListener("nas:local-transfer-update",ev=>{local=Array.isArray(ev.detail?.jobs)?ev.detail.jobs:[];go()})}
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(boot,900));else setTimeout(boot,900);
 })();
+
+[executed on device: test (f7a34059-6d6f-4fe5-a6c7-482870e72c37)]
