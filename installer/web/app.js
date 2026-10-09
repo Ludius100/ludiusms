@@ -28,6 +28,8 @@ let networkMode = "tailscale";
 let tailscaleAuth = "interactive";
 let qbPassword = "";
 let qbPasswordConfirm = "";
+let jellyfinPassword = "";
+let jellyfinPasswordConfirm = "";
 let jellyfinMetadataLanguage = "pl";
 let jellyfinSubtitleLanguage = "pl";
 let jellyfinOpenSubtitles = true;
@@ -235,6 +237,18 @@ function qbPasswordError() {
   return "";
 }
 
+function jellyfinPasswordError() {
+  if (servicePlans.jellyfin !== "install") return "";
+  if (!jellyfinPassword && !jellyfinPasswordConfirm) return "";
+  if (jellyfinPassword.length < 10 || jellyfinPassword.length > 128) return "Hasło musi mieć 10–128 znaków.";
+  if ([...jellyfinPassword].some((ch) =>
+    ch.charCodeAt(0) < 33 || ch.charCodeAt(0) > 126 ||
+    ch === '"' || ch === "'" || ch.charCodeAt(0) === 92 || ch === "$"
+  )) return "Hasło zawiera niedozwolony znak.";
+  if (jellyfinPassword !== jellyfinPasswordConfirm) return "Hasła Jellyfin się różnią.";
+  return "";
+}
+
 function renderServices(data) {
   setActiveStep(4);
   initServicePlans(data);
@@ -263,6 +277,17 @@ function renderServices(data) {
           <small id="qbPasswordHelp">Własne hasło: 10–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
         </div>`
       : "";
+    const jellyfinCredentials = service.id === "jellyfin" && current === "install"
+      ? `<div class="qb-password-box">
+          <strong>Hasło Jellyfin (login: lmsadmin)</strong>
+          <small>Opcjonalnie. Pozostaw oba pola puste, aby wygenerować bezpieczne hasło.</small>
+          <div class="qb-password-fields">
+            <label><span>Nowe hasło</span><input id="jellyfinPassword" type="password" autocomplete="new-password" value="${esc(jellyfinPassword)}"></label>
+            <label><span>Powtórz hasło</span><input id="jellyfinPasswordConfirm" type="password" autocomplete="new-password" value="${esc(jellyfinPasswordConfirm)}"></label>
+          </div>
+          <small id="jellyfinPasswordHelp">Własne hasło: 10–128 znaków ASCII, bez spacji, cudzysłowów, ukośnika odwrotnego i $.</small>
+        </div>`
+      : "";
 
     return `<article class="service-card">
       <div class="service-head">
@@ -275,6 +300,7 @@ function renderServices(data) {
       <div class="service-actions">${buttons}</div>
       <div class="service-plan">Plan: <strong>${esc(serviceActionLabel(current))}</strong></div>
       ${qbCredentials}
+      ${jellyfinCredentials}
     </article>`;
   }).join("");
 
@@ -295,6 +321,17 @@ function renderServices(data) {
   }
   const qbIssue = qbPasswordError();
   if ($("#qbPasswordHelp") && qbIssue) $("#qbPasswordHelp").textContent = qbIssue;
+  for (const [selector, field] of [["#jellyfinPassword", "password"], ["#jellyfinPasswordConfirm", "confirm"]]) {
+    $(selector)?.addEventListener("input", (event) => {
+      if (field === "password") jellyfinPassword = event.target.value;
+      else jellyfinPasswordConfirm = event.target.value;
+      const issue = jellyfinPasswordError();
+      $("#jellyfinPasswordHelp").textContent = issue || "Hasło zostanie ustawione podczas instalacji.";
+      $("#nextBtn").disabled = Boolean(qbPasswordError() || issue);
+    });
+  }
+  const jellyfinIssue = jellyfinPasswordError();
+  if ($("#jellyfinPasswordHelp") && jellyfinIssue) $("#jellyfinPasswordHelp").textContent = jellyfinIssue;
 
   const installCount = Object.values(servicePlans).filter((plan) => plan === "install").length;
   const existingCount = Object.values(servicePlans).filter((plan) => plan === "existing").length;
@@ -308,7 +345,7 @@ function renderServices(data) {
   $("#hint").textContent = safeMode
     ? "Przyciski układają plan. Na tym serwerze nic nie zostanie zainstalowane ani przeinstalowane."
     : "Wybrane instalacje zostaną wykonane dopiero po zatwierdzeniu podsumowania.";
-  $("#nextBtn").disabled = Boolean(qbIssue);
+  $("#nextBtn").disabled = Boolean(qbIssue || jellyfinIssue);
 }
 
 function renderJellyfinSettings() {
@@ -400,6 +437,9 @@ function buildSelectionPayload() {
   };
   if (servicePlans.qbittorrent === "install" && qbPassword) {
     payload.qbittorrent_password = qbPassword;
+  }
+  if (servicePlans.jellyfin === "install" && jellyfinPassword) {
+    payload.jellyfin_password = jellyfinPassword;
   }
   return payload;
 }
