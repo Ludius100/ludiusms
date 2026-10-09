@@ -1157,6 +1157,15 @@ def _lms_start(action, plan, runner):
     start = len(runner.events)
     if runner.enabled:
         _verify_storage_mount(plan)
+        # Docker mógł wystartować przed zamontowaniem magazynu LMS. Odświeżamy
+        # namespace demona przed tworzeniem kontenerów, aby bind /nas wskazywał
+        # aktualny filesystem, a nie katalog ukryty późniejszym mountem.
+        runner.run(
+            ["systemctl", "restart", "docker"],
+            action_id=action["id"],
+            timeout=120,
+        )
+        _verify_storage_mount(plan)
     # Na VM mogły przetrwać stare kontenery ze starym widokiem /nas.
     # Odtworzenie podłącza je do aktualnego magazynu bez usuwania wolumenów.
     runner.run(
