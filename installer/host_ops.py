@@ -132,6 +132,36 @@ class HostOps:
             event["status"] = "done"
         return event
 
+    def replace_fstab_mount(self, mountpoint, line, *, action_id):
+        path = Path("/etc/fstab")
+        mountpoint = str(mountpoint)
+        event = self._event(
+            action_id,
+            "fstab-mount",
+            path=str(path),
+            mountpoint=mountpoint,
+            line=line,
+        )
+        if self.enabled:
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+            kept = []
+            for raw in current.splitlines():
+                stripped = raw.strip()
+                if not stripped or stripped.startswith("#"):
+                    kept.append(raw)
+                    continue
+                fields = stripped.split()
+                if len(fields) >= 2 and fields[1] == mountpoint:
+                    continue
+                kept.append(raw)
+            kept.append(line)
+            text = "\n".join(kept).rstrip("\n") + "\n"
+            tmp = path.with_name(path.name + ".lms-tmp")
+            tmp.write_text(text, encoding="utf-8")
+            os.replace(tmp, path)
+            event["status"] = "done"
+        return event
+
     def chmod(self, path, mode, *, action_id):
         path = Path(path)
         event = self._event(
