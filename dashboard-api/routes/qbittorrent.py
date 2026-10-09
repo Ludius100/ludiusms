@@ -3,10 +3,11 @@ from flask import Blueprint, jsonify, request
 from services.qbittorrent_workflows import (
     QBitTorrentError,
     get_qbittorrent_libraries,
+    get_qbittorrent_titles,
+    search_qbittorrent_metadata,
     get_qbittorrent_status,
     prepare_magnet,
     start_torrent,
-    control_torrent,
 )
 
 
@@ -22,6 +23,25 @@ def qbittorrent_libraries():
     return jsonify({
         "libraries": get_qbittorrent_libraries()
     })
+
+
+@qbittorrent_bp.route("/titles")
+def qbittorrent_titles():
+    try:
+        return jsonify(get_qbittorrent_titles(request.args.get("library", "")))
+    except QBitTorrentError as e:
+        return jsonify(e.payload), e.status_code
+
+
+@qbittorrent_bp.route("/metadata-search")
+def qbittorrent_metadata_search():
+    try:
+        return jsonify(search_qbittorrent_metadata(
+            request.args.get("library", ""),
+            request.args.get("q", ""),
+        ))
+    except QBitTorrentError as e:
+        return jsonify(e.payload), e.status_code
 
 
 @qbittorrent_bp.route("")
@@ -89,6 +109,7 @@ def qbittorrent_start():
         result = start_torrent(
             data.get("hash"),
             data.get("selected", []),
+            data.get("targetFolder"),
         )
         return jsonify(result)
 
@@ -107,16 +128,16 @@ def qbittorrent_start():
             "error": "Nie udało się uruchomić torrenta"
         }), 503
 
-
 @qbittorrent_bp.route("/control", methods=["POST", "OPTIONS"])
 def qbittorrent_control():
     if request.method == "OPTIONS":
         return "", 204
     data = request.get_json(silent=True) or {}
     try:
+        from services.qbittorrent_workflows import control_torrent
         return jsonify(control_torrent(data.get("hash"), data.get("action")))
-    except QBitTorrentError as error:
-        return jsonify(error.payload), error.status_code
-    except Exception as error:
-        print("qBittorrent control error:", type(error).__name__, error, flush=True)
-        return jsonify({"ok": False, "error": "Nie udało się wykonać operacji qBittorrent"}), 503
+    except QBitTorrentError as e:
+        return jsonify(e.payload), e.status_code
+    except Exception as e:
+        print("qBittorrent control error:", type(e).__name__, e, flush=True)
+        return jsonify({"ok": False, "error": "Nie udało się wykonać akcji"}), 503
