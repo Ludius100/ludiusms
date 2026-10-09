@@ -419,8 +419,8 @@ def _storage_mount(action, plan, runner):
         f"UUID={uuid} {mountpoint} {filesystem} "
         "defaults,nofail,x-systemd.device-timeout=10 0 2"
     )
-    runner.append_line_once(
-        "/etc/fstab",
+    runner.replace_fstab_mount(
+        mountpoint,
         fstab_line,
         action_id=action["id"],
     )
