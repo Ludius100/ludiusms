@@ -72,6 +72,13 @@ def _copy_installer(source, destination):
         elif item.is_file():
             shutil.copy2(item, target)
 
+    # GitHub checkouts do not guarantee executable bits for installer shell
+    # entrypoints. The release bundle must always be directly runnable.
+    for name in ("install.sh", "check-host.sh"):
+        script = destination / name
+        if script.is_file():
+            script.chmod(script.stat().st_mode | 0o111)
+
 
 def _copy_homepage(source, destination):
     source_js = source / "custom.js"
