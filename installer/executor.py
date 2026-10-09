@@ -893,9 +893,8 @@ def _lms_secrets(action, plan, runner):
         or (secrets.token_urlsafe(30) if runner.enabled else "<generated>")
     )
     jellyfin_password = (
-        secrets.token_urlsafe(30)
-        if runner.enabled
-        else "<generated>"
+        plan.get("config", {}).get("jellyfin_password")
+        or (secrets.token_urlsafe(30) if runner.enabled else "<generated>")
     )
 
     if not (runner.enabled and qb_file.exists()):
