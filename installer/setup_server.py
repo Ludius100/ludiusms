@@ -401,24 +401,34 @@ class Handler(SimpleHTTPRequestHandler):
                 plan,
                 destructive_confirmed=destructive_confirmed,
             )
-            JOB_MANAGER.start(
-                state["id"],
-                mode="run",
-                enabled=True,
-            )
         except (JobError, JobManagerError) as exc:
             return self.send_json(
                 {"ok": False, "error": str(exc)},
                 status=409,
             )
 
-        return self.send_json(
+        # Odpowiedz przeglądarce zanim worker zacznie ciężkie operacje.
+        # ThreadingHTTPServer uruchamia ten handler w osobnym wątku; start
+        # workera po zapisaniu odpowiedzi zapobiega blokowaniu fetch() na
+        # ekranie „Uruchamianie…”.
+        self.send_json(
             {
                 "ok": True,
                 "job": JOB_STORE.public(state),
             },
             status=202,
         )
+        try:
+            JOB_MANAGER.start(
+                state["id"],
+                mode="run",
+                enabled=True,
+            )
+        except JobManagerError:
+            # Stan joba jest już zapisany. Frontend odpyta status i pokaże
+            # ewentualny błąd zamiast wisieć na żądaniu startowym.
+            pass
+        return None
 
     def handle_job_input(self, job_id):
         blocked = execution_gate_error()
