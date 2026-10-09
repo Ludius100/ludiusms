@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from executor import ExecutionError, _storage_format, _verify_storage_mount, _lms_health, _lms_start, execute_plan
+from executor import ExecutionError, _storage_format, _storage_mount, _verify_storage_mount, _lms_health, _lms_start, execute_plan
 from planner import build_plan
 
 
@@ -81,6 +81,21 @@ class ExecutorTests(unittest.TestCase):
                             {}, runner,
                         )
                 runner.run.assert_not_called()
+
+    def test_storage_mount_replaces_stale_fstab_entry_for_same_mountpoint(self):
+        plan = {"config": {"disk": "/dev/sdb", "storage": {
+            "mountpoint": "/srv/lms-media", "media_root": "/srv/lms-media",
+            "filesystem": "ext4"}}}
+        runner = Mock(enabled=True, events=[])
+        with patch("executor._output", return_value="new-uuid"), \
+             patch("executor._command_ok", return_value=True):
+            _storage_mount({"id": "storage.mount"}, plan, runner)
+        runner.replace_fstab_mount.assert_called_once_with(
+            Path("/srv/lms-media"),
+            "UUID=new-uuid /srv/lms-media ext4 defaults,nofail,x-systemd.device-timeout=10 0 2",
+            action_id="storage.mount",
+        )
+        runner.append_line_once.assert_not_called()
 
     def test_start_refuses_unmounted_disk_before_starting_docker(self):
         plan = {"config": {"disk": "/dev/sdb", "storage": {
