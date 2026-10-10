@@ -381,6 +381,9 @@ def jellyfin_update_library_preferences(
     }.get(metadata_language, "PL")
     updated["SubtitleDownloadLanguages"] = [subtitle_language]
     updated["SaveSubtitlesWithMedia"] = True
+    # LMS ma od razu wykrywać nowe pliki dodawane do katalogów bibliotek.
+    # Jellyfin używa monitora systemu plików, więc nie trzeba czekać na okresowy pełny skan.
+    updated["EnableRealtimeMonitor"] = True
     # Reorder an existing TMDB provider, without inventing provider names or
     # enabling a plugin that this particular Jellyfin instance does not have.
     type_options = []
