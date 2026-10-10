@@ -457,15 +457,17 @@ Nie zamykaj:
 - pierwszego terminala SSH,
 - PowerShella z tunelem.
 
-### Jeżeli instalator poprosi o Tailscale
+### Połączenie z Tailscale odbywa się podczas instalacji
 
-Kliknij **Otwórz autoryzację**.
+W trakcie instalacji LMS zatrzyma się na kroku Tailscale i pokaże przycisk **Otwórz autoryzację**.
 
-W przeglądarce zaloguj się do swojego konta Tailscale i zaakceptuj dodanie serwera.
+Kliknij go, zaloguj się w przeglądarce do swojego konta Tailscale i zaakceptuj dodanie serwera.
 
-Wróć do instalatora i kliknij **Wznów**.
+Następnie wróć do instalatora i kliknij **Wznów**.
 
-Jeśli chcesz później otwierać LMS z Windowsa, zainstaluj też aplikację Tailscale na swoim komputerze i zaloguj się na **to samo konto**.
+Od tego momentu Tailscale na serwerze jest już skonfigurowany. Po zakończeniu instalacji **nie trzeba konfigurować go ponownie**.
+
+Jeśli chcesz otwierać LMS z Windowsa, zainstaluj aplikację Tailscale na swoim komputerze (jeżeli jeszcze jej nie masz) i zaloguj się na **to samo konto**.
 
 ---
 
@@ -487,6 +489,8 @@ Na screenie w tym poradniku hasła zostały specjalnie zamazane.
 ---
 
 # Część 7 — wejście do Ludius MS przez Tailscale
+
+Tailscale został już zainstalowany i autoryzowany przez kreator podczas instalacji. Tutaj niczego więcej nie konfigurujesz — potrzebujemy tylko adresu serwera w sieci Tailscale.
 
 ## 23. Sprawdź adres Tailscale serwera
 
