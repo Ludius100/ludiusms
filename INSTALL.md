@@ -69,12 +69,13 @@ W sekcji **Networking** ustaw:
 - **Create new virtual cloud network**
 - **Create new public subnet**
 - prywatny adres IPv4: **Automatically assign private IPv4 address**
-- **Automatically assign public IPv4 address — WŁĄCZ**
 - IPv6 możesz zostawić wyłączone
 
 ![Oracle Cloud — sieć](docs/instalacja/oracle-03-network.webp)
 
-Publiczny adres IP będzie potrzebny tylko do pierwszego połączenia SSH. Po instalacji będziemy korzystać z prywatnego Tailscale.
+Na tym ekranie opcja **Automatically assign public IPv4 address** może być wyszarzona i nie dać się włączyć. **To normalne — zostaw ją tak, jak jest.**
+
+Publiczny adres IPv4 przypiszemy chwilę później, już po utworzeniu instancji. Będzie potrzebny tylko do pierwszego połączenia SSH. Po instalacji będziemy korzystać z prywatnego Tailscale.
 
 ---
 
@@ -179,9 +180,25 @@ Nie formatuj dysku ręcznie. Zrobi to instalator Ludius MS.
 
 # Część 3 — pierwsze połączenie z serwerem
 
-## 8. Skopiuj publiczny adres IP
+## 8. Przypisz publiczny adres IPv4
 
-Na stronie instancji znajdź **Public IPv4 address** i skopiuj go.
+Po utworzeniu instancji publiczny adres IPv4 może jeszcze nie być przypisany. Zrobimy to teraz.
+
+W Oracle wejdź w:
+
+**Compute → Instances → Twoja instancja → Networking**
+
+W sekcji **Attached VNICs** kliknij główny VNIC instancji.
+
+Następnie otwórz zakładkę **IP administration**. Przy głównym prywatnym adresie IP kliknij menu z trzema kropkami **⋮** i wybierz **Edit**.
+
+W polu **Public IP type** wybierz:
+
+**Ephemeral public IP**
+
+i zatwierdź przyciskiem **Update**.
+
+Po chwili Oracle przypisze instancji publiczny adres IPv4. Skopiuj go — będzie potrzebny do pierwszego połączenia SSH.
 
 Przykładowo może wyglądać tak:
 
