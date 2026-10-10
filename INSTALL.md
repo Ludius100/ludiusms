@@ -113,6 +113,31 @@ ludius.key
 
 Nie wysyłaj tego pliku nikomu i nie dodawaj go do GitHuba.
 
+Nie klikaj jeszcze **Create** — najpierw ustawimy dysk systemowy.
+
+---
+
+## 5. Ustaw dysk systemowy (Boot volume)
+
+Przewiń niżej do sekcji **Storage → Boot volume**.
+
+Włącz:
+
+**Specify a custom boot volume size and performance setting**
+
+Następnie ustaw:
+
+- **Boot volume size:** `50 GB`
+- **Boot volume performance:** `10 VPU`
+- **Use in-transit encryption:** włączone
+- **Encrypt this volume with a key that you manage:** wyłączone
+
+![Oracle Cloud — Boot volume](docs/instalacja/oracle-boot-volume.webp)
+
+To jest dysk systemowy serwera. Będzie na nim Ubuntu oraz pliki potrzebne do działania Ludius MS. Multimedia będą przechowywane osobno na Block Volume, który utworzymy w następnym kroku.
+
+Pozostałe ustawienia możesz zostawić domyślne.
+
 Teraz kliknij **Create** i poczekaj, aż instancja będzie miała status **Running**.
 
 ---
@@ -121,7 +146,7 @@ Teraz kliknij **Create** i poczekaj, aż instancja będzie miała status **Runni
 
 Ludius MS trzyma multimedia na **osobnym Block Volume**. Dzięki temu system i Twoje pliki są rozdzielone.
 
-## 5. Otwórz Block Volumes
+## 6. Otwórz Block Volumes
 
 W menu Oracle wybierz:
 
@@ -133,7 +158,7 @@ Kliknij **Create Block Volume**.
 
 ---
 
-## 6. Utwórz dysk `LMS-Media`
+## 7. Utwórz dysk `LMS-Media`
 
 Ustaw:
 
@@ -158,7 +183,7 @@ Kliknij **Create Block Volume**.
 
 ---
 
-## 7. Podepnij dysk do instancji
+## 8. Podepnij dysk do instancji
 
 Wróć do:
 
@@ -186,7 +211,7 @@ Nie formatuj dysku ręcznie. Zrobi to instalator Ludius MS.
 
 # Część 3 — pierwsze połączenie z serwerem
 
-## 8. Przypisz publiczny adres IPv4
+## 9. Przypisz publiczny adres IPv4
 
 Po utworzeniu instancji publiczny adres IPv4 może jeszcze nie być przypisany. Zrobimy to teraz.
 
@@ -216,7 +241,7 @@ To tylko przykład. Użyj adresu swojej instancji.
 
 ---
 
-## 9. Połącz się przez PowerShell
+## 10. Połącz się przez PowerShell
 
 Na Windows otwórz **PowerShell**.
 
@@ -258,7 +283,7 @@ Jeżeli zobaczysz terminal z nazwą serwera, jesteś już zalogowany do Ubuntu.
 
 # Część 4 — pobranie Ludius MS
 
-## 10. Przygotuj system
+## 11. Przygotuj system
 
 W terminalu serwera skopiuj i wklej:
 
@@ -271,7 +296,7 @@ Poczekaj, aż polecenia się zakończą.
 
 ---
 
-## 11. Pobierz Ludius MS i zbuduj instalator
+## 12. Pobierz Ludius MS i zbuduj instalator
 
 Skopiuj cały blok:
 
@@ -311,7 +336,7 @@ Nie zamykaj tego terminala.
 
 # Część 5 — otwarcie instalatora w przeglądarce
 
-## 12. Otwórz drugi PowerShell
+## 13. Otwórz drugi PowerShell
 
 Na swoim komputerze uruchom **drugie okno PowerShell**.
 
@@ -331,7 +356,7 @@ Teraz skopiuj **pełny adres z tokenem**, który pokazał instalator w pierwszym
 
 # Część 6 — graficzny instalator Ludius MS
 
-## 13. Serwer
+## 14. Serwer
 
 Pierwszy ekran pokazuje, co instalator wykrył na serwerze.
 
@@ -345,7 +370,7 @@ Kliknij **Dalej**.
 
 ---
 
-## 14. Dysk
+## 15. Dysk
 
 Instalator pokaże dostępne urządzenia.
 
@@ -365,7 +390,7 @@ Kliknij **Dalej**.
 
 ---
 
-## 15. Biblioteki
+## 16. Biblioteki
 
 Wybierz, co chcesz przechowywać:
 
@@ -383,7 +408,7 @@ Kliknij **Dalej**.
 
 ---
 
-## 16. Usługi
+## 17. Usługi
 
 Na tym ekranie wybierasz usługi LMS.
 
@@ -405,7 +430,7 @@ Kliknij **Dalej**.
 
 ---
 
-## 17. Jellyfin i napisy
+## 18. Jellyfin i napisy
 
 ![LMS Setup — Jellyfin](docs/instalacja/installer-05-jellyfin.webp)
 
@@ -421,7 +446,7 @@ Kliknij **Dalej**.
 
 ---
 
-## 18. Sieć — wybierz Tailscale
+## 19. Sieć — wybierz Tailscale
 
 ![LMS Setup — Sieć](docs/instalacja/installer-06-network.webp)
 
@@ -433,7 +458,7 @@ Kliknij **Dalej**.
 
 ---
 
-## 19. Sprawdź podsumowanie
+## 20. Sprawdź podsumowanie
 
 Instalator pokaże cały plan.
 
@@ -454,7 +479,7 @@ Jeżeli wszystko się zgadza, przejdź dalej.
 
 ---
 
-## 20. Ostatnie potwierdzenie
+## 21. Ostatnie potwierdzenie
 
 ![LMS Setup — Gotowe do instalacji](docs/instalacja/installer-08-confirm.webp)
 
@@ -468,7 +493,7 @@ Następnie kliknij:
 
 ---
 
-## 21. Poczekaj na instalację
+## 22. Poczekaj na instalację
 
 ![LMS Setup — Instalowanie](docs/instalacja/installer-09-progress.webp)
 
@@ -494,7 +519,7 @@ Jeśli chcesz otwierać LMS z Windowsa, zainstaluj aplikację Tailscale na swoim
 
 ---
 
-## 22. Zapisz dane logowania
+## 23. Zapisz dane logowania
 
 Po udanej instalacji zobaczysz ekran podobny do tego:
 
@@ -515,7 +540,7 @@ Na screenie w tym poradniku hasła zostały specjalnie zamazane.
 
 Tailscale został już zainstalowany i autoryzowany przez kreator podczas instalacji. Tutaj niczego więcej nie konfigurujesz — potrzebujemy tylko adresu serwera w sieci Tailscale.
 
-## 23. Sprawdź adres Tailscale serwera
+## 24. Sprawdź adres Tailscale serwera
 
 W terminalu serwera wpisz:
 
@@ -535,7 +560,7 @@ To prywatny adres Twojego serwera w Tailscale.
 
 ---
 
-## 24. Otwórz dashboard
+## 25. Otwórz dashboard
 
 Na komputerze zalogowanym do tego samego Tailscale otwórz:
 
