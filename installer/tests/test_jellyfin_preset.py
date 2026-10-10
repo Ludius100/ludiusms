@@ -106,6 +106,7 @@ class JellyfinPresetTests(unittest.TestCase):
         self.assertEqual(opts["MetadataCountryCode"], "PL")
         self.assertEqual(opts["SubtitleDownloadLanguages"], ["en"])
         self.assertTrue(opts["SaveSubtitlesWithMedia"])
+        self.assertTrue(opts["EnableRealtimeMonitor"])
 
 
 if __name__ == "__main__":
