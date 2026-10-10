@@ -3416,3 +3416,31 @@ html,body{margin:0!important;width:100%;height:100%;overflow:hidden!important;ba
 .lms-transfer-actions button:hover{border-color:#39aef4;color:#fff}
 .lms-transfer-actions button.danger{margin-left:auto;border-color:rgba(255,80,92,.22);color:#e9969c}
 .lms-transfer-actions button.danger:hover{background:rgba(180,35,48,.18);border-color:#e35c67;color:#fff}
+
+
+/* LMS visible background lift - active stylesheet */
+:root{--lms1-bg:#06111b;--lms1-panel:#0b1927;--lms1-panel-2:#0d1d2d;--lms1-card:#0e2031}
+html,body{background:#06111b!important}
+#nas-dashboard{background:#06111b!important}
+#lms-1to1-app{background:radial-gradient(circle at 65% -15%,rgba(31,104,174,.15),transparent 35%),linear-gradient(145deg,#081624 0%,#06111b 48%,#030b13 100%)!important}
+#lms-1to1-app .lms1-sidebar{background:radial-gradient(circle at 20% 0,rgba(26,113,194,.12),transparent 34%),linear-gradient(180deg,#091b2b 0%,#071521 48%,#05101a 100%)!important}
+#lms-1to1-app .lms1-topbar{background:rgba(6,17,27,.78)!important}
+#lms-1to1-app .lms1-metric{background:linear-gradient(145deg,rgba(14,34,52,.97),rgba(8,21,34,.95))!important}
+
+
+/* LMS HQ hero + clean topbar — 2026-10-10 */
+#lms-1to1-app .lms1-topbar{
+  background:transparent!important;
+  border-bottom:0!important;
+  box-shadow:none!important;
+}
+#lms-1to1-app .lms1-hero-image{
+  left:0!important;right:auto!important;width:100%!important;height:100%!important;
+  object-fit:cover!important;object-position:center 52%!important;
+  opacity:1!important;filter:saturate(1) contrast(1.02) brightness(1.03)!important;
+}
+#lms-1to1-app .lms1-hero-fade{
+  background:
+    linear-gradient(90deg,rgba(3,11,18,.96) 0%,rgba(3,11,18,.82) 8%,rgba(3,11,18,.48) 16%,rgba(3,11,18,.14) 24%,transparent 31%,transparent 100%),
+    linear-gradient(180deg,transparent 0%,transparent 78%,rgba(3,11,18,.10) 100%)!important;
+}
