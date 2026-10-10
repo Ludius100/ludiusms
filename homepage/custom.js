@@ -3329,7 +3329,7 @@
     const view = document.querySelector('[data-view="dashboard"]');
     view.innerHTML =
       '<section class="lms1-hero">' +
-        '<img class="lms1-hero-image" src="/lms-assets/lms-hero.webp" alt="">' +
+        '<img class="lms1-hero-image" src="/lms-assets/lms-hero.png" alt="">' +
         '<div class="lms1-hero-fade"></div>' +
         '<div class="lms1-hero-copy"><span id="lms1-greeting">Dobry wieczór,</span><h1><span id="lms1-profile-name">Remigiusz</span><i>_</i></h1><p><b></b><span id="lms1-global-status">Sprawdzanie systemu…</span></p></div>' +
         '<div class="lms1-clock"><small id="lms1-date">—</small><strong id="lms1-time">--:--</strong><blockquote>„Twoja prywatna<br>biblioteka, zawsze<br>pod ręką.”<em>LUDIUS MS</em></blockquote></div>' +
