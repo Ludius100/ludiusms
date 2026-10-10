@@ -1,132 +1,645 @@
-# Instalacja Ludius MS — build testowy r10
+# Instalacja Ludius MS — krok po kroku
 
-> **Uwaga:** Ludius MS jest w trakcie rozwoju. Poniższa instrukcja dotyczy **wersji testowej**, a nie gotowego wydania publicznego. Instalację sprawdzono na czystej maszynie testowej z Ubuntu Server 24.04. Przed uruchomieniem na ważnym serwerze zrób kopię danych.
+> **Dla kogo jest ten poradnik?**  
+> Dla osoby, która pierwszy raz stawia serwer w Oracle Cloud. Nie musisz wcześniej znać Linuksa, Dockera, Tailscale ani Jellyfin. Rób kroki po kolei i nie pomijaj ostrzeżeń.
 
-## 1. Wymagania
+> **Status projektu:** Ludius MS nadal jest buildem testowym. Instalator był sprawdzany na czystym Ubuntu 24.04 LTS i na Oracle Cloud, ale nadal może zawierać błędy. Nie używaj dysku z ważnymi danymi.
 
-- Serwer z Ubuntu Server **24.04** (zalecany do testów). Instalator rozpoznaje też Ubuntu 22.04 i systemy z rodziny Debian, ale nie wszystkie konfiguracje zostały przetestowane.
-- Dostęp do konta z uprawnieniami `sudo` i możliwość połączenia przez SSH.
-- Co najmniej **2 GB RAM** i **10 GB wolnego miejsca** na dysku systemowym; na pełne środowisko wraz z systemem i aktualizacjami warto przeznaczyć więcej.
-- **Oddzielny dysk na multimedia** (np. dodatkowy wolumen Oracle Cloud), widoczny w systemie jako osobne urządzenie. Jego pojemność zależy od Twojej biblioteki.
-- Dostęp do internetu na serwerze, potrzebny do pobrania zależności i obrazów Dockera.
+---
 
-Instalator potrafi doinstalować Docker Engine i Docker Compose. Wymagania przestrzeni są orientacyjne, a nie gwarantowanym minimum dla każdej konfiguracji.
+## Co zrobimy
 
-**Ważne:** w kreatorze możesz wybrać formatowanie dysku danych jako ext4. **Formatowanie bezpowrotnie usuwa istniejące dane z wybranego urządzenia.** Sprawdź nazwę i rozmiar dysku. Nie wybieraj dysku systemowego ani dysku zawierającego potrzebne pliki. Testowy instalator nie przebudowuje dysków z istniejącymi partycjami.
+W całym poradniku:
 
-## 2. Przygotuj serwer
+1. utworzymy darmową instancję w Oracle Cloud,
+2. dodamy osobny dysk na filmy, seriale i anime,
+3. połączymy się z serwerem przez SSH,
+4. pobierzemy Ludius MS z GitHuba,
+5. uruchomimy graficzny instalator,
+6. połączymy serwer z Tailscale,
+7. sprawdzimy dashboard, Jellyfin i qBittorrent.
 
-Zaloguj się na serwer przez SSH. Zaktualizuj listę pakietów i doinstaluj narzędzia potrzebne do pobrania i zbudowania paczki:
+Na spokojnie — większość pracy wykona instalator.
+
+---
+
+# Część 1 — serwer w Oracle Cloud
+
+## 1. Wejdź do Compute → Instances
+
+W Oracle Cloud otwórz menu po lewej stronie:
+
+**Compute → Instances**
+
+![Oracle Cloud — Compute → Instances](docs/instalacja/oracle-01-compute.webp)
+
+Kliknij **Create instance**.
+
+---
+
+## 2. Wybierz Ubuntu i darmowy typ maszyny
+
+W sekcji systemu wybierz:
+
+- **Canonical Ubuntu 24.04**
+- typ maszyny: **Virtual machine**
+- seria procesora: **Ampere**
+- shape: **VM.Standard.A1.Flex**
+- wybierz wariant oznaczony jako **Always Free-eligible**
+
+Na potrzeby Ludius MS wystarczy konfiguracja podobna do tej ze screena:
+
+- **2 OCPU**
+- **12 GB RAM**
+
+![Oracle Cloud — Ampere A1](docs/instalacja/oracle-02-shape.webp)
+
+> **Ważne:** patrz na oznaczenie **Always Free-eligible**. Nie wybieraj płatnego wariantu tylko dlatego, że wygląda podobnie.
+
+Systemowy dysk startowy zostaw na domyślnej wartości, jeśli Oracle pokazuje około **50 GB**.
+
+---
+
+## 3. Ustaw sieć
+
+Jeśli to Twoja pierwsza instancja, najłatwiej pozwolić Oracle utworzyć sieć automatycznie.
+
+W sekcji **Networking** ustaw:
+
+- **Create new virtual cloud network**
+- **Create new public subnet**
+- prywatny adres IPv4: **Automatically assign private IPv4 address**
+- **Automatically assign public IPv4 address — WŁĄCZ**
+- IPv6 możesz zostawić wyłączone
+
+![Oracle Cloud — sieć](docs/instalacja/oracle-03-network.webp)
+
+Publiczny adres IP będzie potrzebny tylko do pierwszego połączenia SSH. Po instalacji będziemy korzystać z prywatnego Tailscale.
+
+---
+
+## 4. Pobierz klucz SSH
+
+W sekcji **Add SSH keys** najprościej zaznacz:
+
+**Generate a key pair for me**
+
+Następnie kliknij:
+
+**Download private key**
+
+![Oracle Cloud — klucz SSH](docs/instalacja/oracle-04-ssh-key.webp)
+
+Zapisz plik w bezpiecznym miejscu. Oracle nie pokaże Ci ponownie tego samego klucza prywatnego.
+
+Na Windows możesz na przykład utworzyć folder:
+
+```text
+C:\Users\TWOJA_NAZWA\.ssh\
+```
+
+i przenieść tam pobrany klucz, np. jako:
+
+```text
+ludius.key
+```
+
+Nie wysyłaj tego pliku nikomu i nie dodawaj go do GitHuba.
+
+Teraz kliknij **Create** i poczekaj, aż instancja będzie miała status **Running**.
+
+---
+
+# Część 2 — dysk na multimedia
+
+Ludius MS trzyma multimedia na **osobnym Block Volume**. Dzięki temu system i Twoje pliki są rozdzielone.
+
+## 5. Otwórz Block Volumes
+
+W menu Oracle wybierz:
+
+**Storage → Block Volumes**
+
+![Oracle Cloud — Block Volumes](docs/instalacja/oracle-05-storage.webp)
+
+Kliknij **Create Block Volume**.
+
+---
+
+## 6. Utwórz dysk `LMS-Media`
+
+Ustaw:
+
+- nazwa: `LMS-Media`
+- **Availability Domain:** taki sam jak przy instancji
+- **Custom**
+- rozmiar: `150 GB`
+- **VPUs type:** `0 VPUs/GB (Lower cost)`
+- auto-tune: wyłączone
+
+![Oracle Cloud — ustawienia Block Volume](docs/instalacja/oracle-06-volume.webp)
+
+### Dlaczego 150 GB?
+
+Oracle Always Free obejmuje obecnie **200 GB łącznie** dla boot volume i block volume w regionie domowym. Jeśli Twoja instancja ma domyślny dysk systemowy 50 GB i nie wykorzystujesz limitu na inne wolumeny, zostaje 150 GB na `LMS-Media`.
+
+> **Sprawdź podsumowanie kosztów przed kliknięciem Create.** Limity Oracle mogą się zmienić, a posiadanie innych dysków na koncie zmniejsza dostępną darmową pulę.
+
+`Lower cost` jest dobrym wyborem do przechowywania i strumieniowania dużych plików multimedialnych.
+
+Kliknij **Create Block Volume**.
+
+---
+
+## 7. Podepnij dysk do instancji
+
+Wróć do:
+
+**Compute → Instances → Twoja instancja**
+
+Otwórz zakładkę **Storage**.
+
+![Oracle Cloud — Storage instancji](docs/instalacja/oracle-07-attach.webp)
+
+Znajdź **Attached block volumes** i kliknij **Attach Block Volume**.
+
+W oknie wybierz:
+
+- Block Volume: `LMS-Media`
+- Attachment type: **Paravirtualized** / **Recommended**
+- Access: **Read/Write**
+
+Kliknij **Attach**.
+
+Po chwili status powinien zmienić się na **Attached**.
+
+Nie formatuj dysku ręcznie. Zrobi to instalator Ludius MS.
+
+---
+
+# Część 3 — pierwsze połączenie z serwerem
+
+## 8. Skopiuj publiczny adres IP
+
+Na stronie instancji znajdź **Public IPv4 address** i skopiuj go.
+
+Przykładowo może wyglądać tak:
+
+```text
+123.45.67.89
+```
+
+To tylko przykład. Użyj adresu swojej instancji.
+
+---
+
+## 9. Połącz się przez PowerShell
+
+Na Windows otwórz **PowerShell**.
+
+Jeśli Twój klucz jest zapisany jako:
+
+```text
+C:\Users\TWOJA_NAZWA\.ssh\ludius.key
+```
+
+połącz się poleceniem:
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\ludius.key" ubuntu@TWOJ_PUBLICZNY_IP
+```
+
+Przykład:
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\ludius.key" ubuntu@123.45.67.89
+```
+
+Przy pierwszym połączeniu SSH może zapytać:
+
+```text
+Are you sure you want to continue connecting?
+```
+
+Wpisz:
+
+```text
+yes
+```
+
+i naciśnij Enter.
+
+Jeżeli zobaczysz terminal z nazwą serwera, jesteś już zalogowany do Ubuntu.
+
+---
+
+# Część 4 — pobranie Ludius MS
+
+## 10. Przygotuj system
+
+W terminalu serwera skopiuj i wklej:
 
 ```bash
 sudo apt update
 sudo apt install -y git python3 curl ca-certificates util-linux
 ```
 
-Sprawdź dyski i punkt montowania katalogu głównego:
+Poczekaj, aż polecenia się zakończą.
 
-```bash
-lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS
-findmnt /
-```
+---
 
-Zapisz, które urządzenie jest **dyskiem danych**. Nazwa `/dev/sdb` jest tylko przykładem — na Twoim serwerze może być inna. Nie formatuj niczego ręcznie.
+## 11. Pobierz Ludius MS i zbuduj instalator
 
-W Oracle Cloud dodatkowy wolumen musi być wcześniej utworzony i podłączony do instancji. Nie otwieraj publicznie portu kreatora `8765`; do konfiguracji użyj tunelu SSH lub prywatnego połączenia Tailscale.
-
-## 3. Pobierz kod i zbuduj paczkę instalatora
+Skopiuj cały blok:
 
 ```bash
 git clone https://github.com/Ludius100/ludiusms.git
 cd ludiusms
+
 python3 installer/build_bundle.py \
   --installer-source installer \
   --api-source dashboard-api \
   --homepage-source homepage \
   --output build/ludius-ms
-```
 
-Kreator paczki przygotuje pliki aplikacji oraz sprawdzi, czy do dystrybucji nie trafiły wykryte lokalne sekrety i prywatne adresy.
-
-Możesz dodatkowo sprawdzić integralność utworzonej paczki:
-
-```bash
 cd build/ludius-ms
 sha256sum -c MANIFEST.sha256
 ```
 
-Wszystkie pozycje powinny mieć status `OK`.
+Po sprawdzeniu manifestu przy plikach powinno pojawić się `OK`.
 
-## 4. Uruchom graficzny instalator
-
-Pozostając w katalogu `build/ludius-ms`, uruchom:
+Teraz uruchom instalator:
 
 ```bash
 sudo ./install.sh --local
 ```
 
-Opcja `--local` ogranicza dostęp do kreatora do `127.0.0.1:8765` na serwerze. Instalator wyświetli adres z jednorazowym tokenem w postaci:
+Terminal pokaże adres podobny do:
 
 ```text
 http://127.0.0.1:8765/?token=...
 ```
 
-**Nie udostępniaj tokenu ani zrzutów ekranu zawierających pełny adres.** Pozostaw terminal z instalatorem uruchomiony.
+> **Nie wysyłaj nikomu tego adresu ani tokenu.** Token daje dostęp do konfiguracji instalatora.
 
-Na swoim komputerze otwórz drugi terminal i zestaw tunel SSH:
+Nie zamykaj tego terminala.
 
-```bash
-ssh -N -L 8765:127.0.0.1:8765 UZYTKOWNIK@ADRES_SERWERA
+---
+
+# Część 5 — otwarcie instalatora w przeglądarce
+
+## 12. Otwórz drugi PowerShell
+
+Na swoim komputerze uruchom **drugie okno PowerShell**.
+
+Wpisz:
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\ludius.key" -N -L 8765:127.0.0.1:8765 ubuntu@TWOJ_PUBLICZNY_IP
 ```
 
-Zastąp `UZYTKOWNIK` i `ADRES_SERWERA` danymi swojego połączenia SSH. Jeśli korzystasz z niestandardowego portu SSH, dodaj `-p NUMER_PORTU`. Następnie otwórz **pełny adres z tokenem**, który wyświetlił instalator. Nie zamykaj terminalu z tunelem podczas konfiguracji.
+Po wpisaniu komendy okno może wyglądać tak, jakby się zawiesiło i nic nie robiło.
 
-Alternatywnie instalator uruchomiony bez `--local` może użyć Tailscale; ta ścieżka wymaga skonfigurowania i autoryzacji dostępu do prywatnej sieci.
+**To jest prawidłowe.** Tunel SSH działa, dopóki to okno pozostaje otwarte.
 
-## 5. Przejdź przez kreator
+Teraz skopiuj **pełny adres z tokenem**, który pokazał instalator w pierwszym terminalu, i otwórz go w przeglądarce.
 
-W kreatorze:
+---
 
-1. Opcjonalnie wpisz imię wyświetlane w dashboardzie.
-2. Sprawdź wykryty serwer i **wybierz właściwy dysk danych**. Jeszcze raz zweryfikuj urządzenie i informację o ewentualnym formatowaniu.
-3. Wybierz biblioteki (Filmy, Seriale, Anime) i sposób dostępu.
-4. Skonfiguruj Jellyfin i qBittorrent, jeśli chcesz z nich korzystać.
-5. Przeczytaj plan operacji i dopiero wtedy potwierdź instalację.
+# Część 6 — graficzny instalator Ludius MS
 
-Niektóre kroki wymagają dodatkowej interakcji, np. autoryzacji Tailscale albo konfiguracji Jellyfin. Po zakończeniu kreator wyświetli podsumowanie i dane dostępowe — zapisz je w bezpiecznym miejscu, **nie publikuj ich na GitHubie**.
+## 13. Serwer
 
-## 6. Otwórz dashboard
+Pierwszy ekran pokazuje, co instalator wykrył na serwerze.
 
-Domyślny port dashboardu to **3000**. Przy dostępie wyłącznie przez SSH uruchom na swoim komputerze:
+![LMS Setup — Serwer](docs/instalacja/installer-01-server.webp)
+
+Możesz wpisać swoje imię. Pojawi się ono później w powitaniu na dashboardzie.
+
+Na świeżej instancji część pozycji może mieć inny status niż na screenie. Na przykład Docker albo Tailscale mogą nie być jeszcze zainstalowane. To normalne.
+
+Kliknij **Dalej**.
+
+---
+
+## 14. Dysk
+
+Instalator pokaże dostępne urządzenia.
+
+![LMS Setup — Dysk](docs/instalacja/installer-02-disk.webp)
+
+Wybierz **dodatkowy Block Volume**, który utworzyliśmy wcześniej.
+
+Nie sugeruj się ślepo nazwą `/dev/sdb` ze screena. Na Twojej instancji nazwa może być inna.
+
+Najłatwiej rozpoznać poprawny dysk po rozmiarze — powinien mieć około **150 GB**.
+
+> **UWAGA: WYBRANY DYSK ZOSTANIE SFORMATOWANY. WSZYSTKIE DANE NA NIM ZOSTANĄ USUNIĘTE.**
+
+Instalator chroni dysk systemowy, ale i tak sprawdź rozmiar przed przejściem dalej.
+
+Kliknij **Dalej**.
+
+---
+
+## 15. Biblioteki
+
+Wybierz, co chcesz przechowywać:
+
+![LMS Setup — Biblioteki](docs/instalacja/installer-03-libraries.webp)
+
+Domyślnie możesz zostawić:
+
+- Filmy
+- Seriale
+- Anime
+
+Dla Anime LMS utworzy osobne katalogi na filmy i seriale.
+
+Kliknij **Dalej**.
+
+---
+
+## 16. Usługi
+
+Na tym ekranie wybierasz usługi LMS.
+
+![LMS Setup — Usługi](docs/instalacja/installer-04-services.webp)
+
+Zalecany zestaw:
+
+- **Tailscale**
+- **Jellyfin**
+- **qBittorrent**
+
+Przy Jellyfin i qBittorrent możesz wpisać własne hasła.
+
+Jeżeli zostawisz pola puste, Ludius MS wygeneruje silne hasła automatycznie i pokaże je po zakończeniu instalacji.
+
+Na świeżej instancji Tailscale może być oznaczony jako niewykryty. To normalne — instalator przeprowadzi Cię przez jego konfigurację.
+
+Kliknij **Dalej**.
+
+---
+
+## 17. Jellyfin i napisy
+
+![LMS Setup — Jellyfin](docs/instalacja/installer-05-jellyfin.webp)
+
+Dla polskiej biblioteki możesz ustawić:
+
+- język metadanych: **Polski**
+- język napisów: **Polski**
+- **Zainstaluj wtyczkę Open Subtitles** — zaznaczone
+
+Konto OpenSubtitles dodasz później w samym Jellyfin.
+
+Kliknij **Dalej**.
+
+---
+
+## 18. Sieć — wybierz Tailscale
+
+![LMS Setup — Sieć](docs/instalacja/installer-06-network.webp)
+
+Wybierz **Tailscale**.
+
+Tailscale tworzy prywatne połączenie między Twoim komputerem a serwerem. Dzięki temu nie musisz wystawiać dashboardu, Jellyfin ani qBittorrenta bezpośrednio do Internetu.
+
+Kliknij **Dalej**.
+
+---
+
+## 19. Sprawdź podsumowanie
+
+Instalator pokaże cały plan.
+
+![LMS Setup — Podsumowanie](docs/instalacja/installer-07-summary.webp)
+
+Sprawdź przede wszystkim:
+
+- wybrany dysk,
+- punkt montowania `/srv/lms-media`,
+- biblioteki,
+- Tailscale,
+- język Jellyfin,
+- Open Subtitles.
+
+Operacja formatowania dysku jest oznaczona jako **DESTRUKCYJNA**.
+
+Jeżeli wszystko się zgadza, przejdź dalej.
+
+---
+
+## 20. Ostatnie potwierdzenie
+
+![LMS Setup — Gotowe do instalacji](docs/instalacja/installer-08-confirm.webp)
+
+Zaznacz:
+
+**Rozumiem, że wybrany dysk zostanie sformatowany i jego dane zostaną usunięte.**
+
+Następnie kliknij:
+
+**Rozpocznij instalację**
+
+---
+
+## 21. Poczekaj na instalację
+
+![LMS Setup — Instalowanie](docs/instalacja/installer-09-progress.webp)
+
+LMS wykonuje wszystkie kroki po kolei.
+
+Nie zamykaj:
+
+- strony instalatora,
+- pierwszego terminala SSH,
+- PowerShella z tunelem.
+
+### Jeżeli instalator poprosi o Tailscale
+
+Kliknij **Otwórz autoryzację**.
+
+W przeglądarce zaloguj się do swojego konta Tailscale i zaakceptuj dodanie serwera.
+
+Wróć do instalatora i kliknij **Wznów**.
+
+Jeśli chcesz później otwierać LMS z Windowsa, zainstaluj też aplikację Tailscale na swoim komputerze i zaloguj się na **to samo konto**.
+
+---
+
+## 22. Zapisz dane logowania
+
+Po udanej instalacji zobaczysz ekran podobny do tego:
+
+![LMS Setup — gotowe](docs/instalacja/installer-10-finish.webp)
+
+Instalator pokaże dane do:
+
+- Jellyfin
+- qBittorrent
+
+**Zapisz hasła od razu w bezpiecznym miejscu.**
+
+Na screenie w tym poradniku hasła zostały specjalnie zamazane.
+
+---
+
+# Część 7 — wejście do Ludius MS przez Tailscale
+
+## 23. Sprawdź adres Tailscale serwera
+
+W terminalu serwera wpisz:
 
 ```bash
-ssh -N -L 3000:127.0.0.1:3000 UZYTKOWNIK@ADRES_SERWERA
+tailscale ip -4
 ```
 
-Otwórz w przeglądarce: **http://127.0.0.1:3000/**.
+Dostaniesz adres zaczynający się zwykle od `100.`.
 
-Jeśli wybrano dostęp przez Tailscale, użyj adresu prywatnego serwera i odpowiedniego portu. Jellyfin korzysta domyślnie z portu `8096`, a qBittorrent z `8080`, o ile zostały zainstalowane i wystawione w wybranym trybie sieciowym.
+Przykład:
 
-## 7. Sprawdzenie instalacji i restartu
+```text
+100.64.12.34
+```
 
-Na serwerze możesz sprawdzić stan usług:
+To prywatny adres Twojego serwera w Tailscale.
+
+---
+
+## 24. Otwórz dashboard
+
+Na komputerze zalogowanym do tego samego Tailscale otwórz:
+
+```text
+http://ADRES_TAILSCALE:3000
+```
+
+Przykład:
+
+```text
+http://100.64.12.34:3000
+```
+
+Pozostałe usługi:
+
+```text
+Jellyfin:     http://ADRES_TAILSCALE:8096
+qBittorrent:  http://ADRES_TAILSCALE:8080
+```
+
+Użyj danych logowania pokazanych przez instalator.
+
+---
+
+# Część 8 — OpenSubtitles
+
+Jeśli podczas instalacji zaznaczyłeś wtyczkę Open Subtitles:
+
+1. otwórz Jellyfin,
+2. zaloguj się jako administrator,
+3. przejdź do ustawień wtyczki Open Subtitles,
+4. wpisz dane swojego konta OpenSubtitles.
+
+Sama wtyczka jest instalowana przez LMS, ale konto trzeba podać ręcznie.
+
+---
+
+# Część 9 — test po instalacji
+
+Po instalacji sprawdź:
+
+- czy otwiera się dashboard Ludius MS,
+- czy Jellyfin działa,
+- czy qBittorrent działa,
+- czy możesz przesłać plik,
+- czy pobieranie torrenta pojawia się w zakładce Media,
+- czy biblioteki Jellyfin są widoczne.
+
+Na koniec zrestartuj serwer:
 
 ```bash
-sudo docker compose --project-directory /opt/lms --env-file /opt/lms/.env -f /opt/lms/compose.yaml ps
-curl -fsS http://127.0.0.1:3000/api/health
-findmnt /srv/lms-media
-systemctl status lms-storage-guard.service
+sudo reboot
 ```
 
-Ścieżka `/srv/lms-media` dotyczy nowego dysku sformatowanego przez kreator. Jeśli wykorzystałeś istniejący, wcześniej zamontowany dysk, sprawdź jego rzeczywisty punkt montowania.
+Odczekaj około 1–2 minuty i ponownie spróbuj wejść przez adres Tailscale.
 
-Po pierwszej udanej instalacji warto wykonać kontrolowany restart serwera i ponownie sprawdzić dysk, dashboard oraz dostęp Jellyfin i qBittorrenta.
+LMS, Docker i Tailscale powinny uruchomić się ponownie automatycznie.
 
-## Ograniczenia wersji testowej
+---
 
-- Funkcje mogą być niekompletne lub zawierać błędy.
-- Nie ma jeszcze gotowego, publicznego procesu aktualizacji i przywracania poprzedniej wersji.
-- Czysta instalacja została sprawdzona na VM z Ubuntu 24.04; nie oznacza to przetestowania wszystkich wariantów Oracle Cloud i urządzeń.
-- Do czasu oficjalnego wydania zalecamy testowanie na maszynie bez ważnych danych.
+# Najczęstsze problemy
 
-Aktualny postęp projektu opisano w [ROADMAP.md](ROADMAP.md). Zgłoszenia błędów i uwagi dotyczące instalacji są mile widziane.
+## Nie mogę połączyć się przez SSH
+
+Sprawdź:
+
+- czy instancja ma status **Running**,
+- czy używasz **Public IPv4 address**,
+- czy login to `ubuntu`,
+- czy wskazujesz poprawny klucz prywatny.
+
+Przykład:
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\ludius.key" ubuntu@TWOJ_PUBLICZNY_IP
+```
+
+---
+
+## PowerShell z tunelem nic nie pokazuje
+
+Tak ma być.
+
+Polecenie:
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\ludius.key" -N -L 8765:127.0.0.1:8765 ubuntu@TWOJ_PUBLICZNY_IP
+```
+
+pracuje w tle i utrzymuje tunel. Nie zamykaj tego okna podczas konfiguracji.
+
+---
+
+## Nie widzę dodatkowego dysku w instalatorze
+
+W Oracle sprawdź:
+
+**Compute → Instances → Twoja instancja → Storage → Attached block volumes**
+
+`LMS-Media` musi mieć status **Attached**.
+
+Jeżeli dopiero go podłączyłeś, odczekaj chwilę i kliknij **Skanuj ponownie** w instalatorze.
+
+---
+
+## Po instalacji nie otwiera się adres `100.x.x.x`
+
+Sprawdź, czy:
+
+- Tailscale działa na serwerze,
+- Tailscale jest zainstalowany na Twoim komputerze,
+- oba urządzenia są zalogowane na to samo konto.
+
+Na serwerze:
+
+```bash
+tailscale status
+```
+
+---
+
+## Zapomniałem haseł pokazanych po instalacji
+
+Nie publikuj pliku `.env` ani sekretów LMS w internecie.
+
+Jeżeli dopiero skończyłeś instalację, najlepiej od razu skopiuj dane z ekranu końcowego do menedżera haseł.
+
+---
+
+# Gotowe 🎉
+
+Jeżeli dashboard działa przez Tailscale, Jellyfin widzi biblioteki, a po restarcie serwer wraca samodzielnie — podstawowa instalacja Ludius MS jest zakończona.
+
+Aktualny stan projektu i plan dalszego rozwoju znajdziesz w [ROADMAP.md](ROADMAP.md).
