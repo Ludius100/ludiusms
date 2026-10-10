@@ -185,25 +185,27 @@ Kliknij **Create Block Volume**.
 
 ## 8. Podepnij dysk do instancji
 
-Wróć do:
+W Oracle wejdź w:
 
-**Compute → Instances → Twoja instancja**
+**Storage → Block Volumes**
 
-Otwórz zakładkę **Storage**.
+Kliknij utworzony wcześniej wolumen:
 
-![Oracle Cloud — Storage instancji](docs/instalacja/oracle-07-attach.webp)
+**LMS-Media**
 
-Znajdź **Attached block volumes** i kliknij **Attach Block Volume**.
+Następnie otwórz zakładkę:
 
-W oknie wybierz:
+**Attached instances**
 
-- Block Volume: `LMS-Media`
-- Attachment type: **Paravirtualized** / **Recommended**
-- Access: **Read/Write**
+![Oracle Cloud — podpinanie Block Volume](docs/instalacja/oracle-07-attach.webp)
+
+Kliknij **Attach to instance**.
+
+W oknie wybierz swoją instancję Ludius MS. Jeśli Oracle pokaże dodatkowe opcje, zostaw zalecany typ podłączenia **Paravirtualized** oraz dostęp **Read/Write**.
 
 Kliknij **Attach**.
 
-Po chwili status powinien zmienić się na **Attached**.
+Po chwili instancja powinna pojawić się na liście w zakładce **Attached instances**.
 
 Nie formatuj dysku ręcznie. Zrobi to instalator Ludius MS.
 
