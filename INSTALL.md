@@ -25,6 +25,12 @@ Na spokojnie — większość pracy wykona instalator.
 
 # Część 1 — serwer w Oracle Cloud
 
+Na początek wejdź na stronę Oracle Cloud:
+
+**https://cloud.oracle.com/**
+
+Jeśli nie masz jeszcze konta Oracle Cloud, załóż je i zaloguj się do panelu.
+
 ## 1. Wejdź do Compute → Instances
 
 W Oracle Cloud otwórz menu po lewej stronie:
