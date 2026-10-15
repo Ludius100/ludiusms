@@ -17,6 +17,7 @@ from services.uploads import (
     create_upload_session,
     finalize_upload,
     get_upload_status,
+    list_active_uploads,
     save_small_upload,
 )
 
@@ -111,6 +112,21 @@ def media_plan():
 # ============================================================
 # Local Media Upload
 # ============================================================
+
+@media_bp.route("/uploads", methods=["GET", "OPTIONS"])
+def media_active_uploads():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    try:
+        return jsonify(list_active_uploads())
+    except Exception as e:
+        print("Upload list error:", type(e).__name__, e, flush=True)
+        return jsonify({
+            "ok": False,
+            "error": "Nie udało się odczytać aktywnych uploadów"
+        }), 500
+
 
 @media_bp.route("/upload/init", methods=["POST", "OPTIONS"])
 def media_upload_init():
