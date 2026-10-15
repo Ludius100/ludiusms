@@ -236,6 +236,32 @@ def create_upload_session(data):
 
     ensure_nas_directory(UPLOAD_STAGING_DIR)
 
+    # Jeżeli ten sam plik był już wysyłany i transfer został przerwany,
+    # zwracamy istniejącą sesję. Frontend zacznie od zapisanego offsetu.
+    try:
+        state_names = os.listdir(UPLOAD_STATE_DIR)
+    except FileNotFoundError:
+        state_names = []
+
+    for state_name in state_names:
+        if not state_name.endswith(".json"):
+            continue
+
+        try:
+            existing = _load_upload_state(state_name[:-5])
+            existing_path = existing["stagingPath"]
+            received = os.path.getsize(existing_path)
+        except (UploadError, OSError, KeyError, ValueError):
+            continue
+
+        if (
+            existing.get("destination") == destination
+            and existing.get("originalName") == original_name
+            and int(existing.get("size", -1)) == size
+            and 0 <= received <= size
+        ):
+            return _public_upload_state(existing)
+
     upload_id = uuid.uuid4().hex
     staging_path = os.path.join(
         UPLOAD_STAGING_DIR,
@@ -274,6 +300,37 @@ def create_upload_session(data):
 def get_upload_status(upload_id):
     state = _load_upload_state(upload_id)
     return _public_upload_state(state)
+
+
+def list_active_uploads():
+    uploads = []
+
+    try:
+        names = os.listdir(UPLOAD_STATE_DIR)
+    except FileNotFoundError:
+        names = []
+
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+
+        upload_id = name[:-5]
+
+        try:
+            state = _load_upload_state(upload_id)
+            public = _public_upload_state(state)
+        except (UploadError, OSError, ValueError):
+            continue
+
+        if public["received"] < public["size"] and os.path.exists(state["stagingPath"]):
+            uploads.append(public)
+
+    uploads.sort(key=lambda item: item.get("name", "").lower())
+
+    return {
+        "ok": True,
+        "uploads": uploads,
+    }
 
 
 def append_upload_chunk(
